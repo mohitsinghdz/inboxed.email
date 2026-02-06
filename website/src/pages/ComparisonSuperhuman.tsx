@@ -7,14 +7,14 @@ export default function ComparisonSuperhuman() {
         <div className="container-custom py-32">
             <SEO
                 title="Superhuman Alternative (Free & Local) | Inboxed"
-                description="Switch from Superhuman to Inboxed. Save $360/year and keep your data private with local AI processing."
+                description="Switch from Superhuman to Inboxed. Free forever and keep your data private with local AI processing."
                 canonical="https://inboxed.email/compare/superhuman"
             />
             <div className="max-w-4xl mx-auto">
                 <h1 className="font-serif text-5xl md:text-7xl mb-8">Inboxed vs. Superhuman</h1>
                 <p className="font-body text-xl md:text-2xl mb-16 max-w-2xl leading-relaxed">
                     Superhuman is fast. But it sends your data to the cloud and costs $360/year.
-                    Inboxed runs locally on your Mac and costs $1 for life.
+                    Inboxed runs locally on your Mac and is completely free.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
@@ -73,7 +73,7 @@ export default function ComparisonSuperhuman() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <Zap size={20} className="text-black" />
-                                <span>$1 Lifetime (Pro)</span>
+                                <span>Free</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <span>Native macOS App</span>
@@ -93,11 +93,11 @@ export default function ComparisonSuperhuman() {
                         Apple Silicon is powerful enough to run intelligent models right on your laptop.
                     </p>
                     <p className="font-body text-lg leading-relaxed mb-8">
-                        Save $359 a year. Get better privacy. Own your software.
+                        Save $360 a year. Get better privacy. Own your software.
                     </p>
 
                     <Link to="/" className="btn-primary inline-block">
-                        Get Inboxed for $1
+                        Get Inboxed — Free
                     </Link>
                 </div>
             </div>

@@ -73,7 +73,7 @@ export default function ComparisonZero() {
                             </div>
                             <div className="flex items-center gap-2">
                                 <Zap size={20} className="text-black" />
-                                <span>$1 Lifetime (Pro)</span>
+                                <span>Free</span>
                             </div>
                         </div>
                     </div>
@@ -87,7 +87,7 @@ export default function ComparisonZero() {
                     </p>
 
                     <Link to="/" className="btn-primary inline-block">
-                        Get Inboxed for $1
+                        Get Inboxed — Free
                     </Link>
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAiStore, ModelOption } from '../../stores/aiStore'
+import { useRagStore } from '../../stores/ragStore'
 
 interface ModelSettingsProps {
   onClose: () => void
@@ -28,14 +29,59 @@ export default function ModelSettings({ onClose }: ModelSettingsProps) {
     checkModelStatus,
   } = useAiStore()
 
+  const {
+    isInitialized: ragInitialized,
+    isModelDownloaded: embeddingModelDownloaded,
+    isEmbedding,
+    embeddingStatus,
+    checkModelDownloaded: checkEmbeddingModel,
+    downloadAndInitRag,
+    embedAllEmails,
+    getEmbeddingStatus,
+    getEmbeddedCount,
+  } = useRagStore()
+
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [embeddingDownloading, setEmbeddingDownloading] = useState(false)
+  const [embeddedCount, setEmbeddedCount] = useState(0)
 
   useEffect(() => {
     getAvailableModels()
     getDownloadedModels()
     getActiveModelId()
     checkModelStatus()
-  }, [getAvailableModels, getDownloadedModels, getActiveModelId, checkModelStatus])
+    checkEmbeddingModel()
+  }, [getAvailableModels, getDownloadedModels, getActiveModelId, checkModelStatus, checkEmbeddingModel])
+
+  useEffect(() => {
+    if (ragInitialized) {
+      getEmbeddingStatus()
+      getEmbeddedCount().then(setEmbeddedCount)
+    }
+  }, [ragInitialized, getEmbeddingStatus, getEmbeddedCount])
+
+  const handleEmbeddingDownload = async () => {
+    setEmbeddingDownloading(true)
+    try {
+      await downloadAndInitRag()
+      const count = await getEmbeddedCount()
+      setEmbeddedCount(count)
+    } catch (err) {
+      console.error('Embedding model download failed:', err)
+    } finally {
+      setEmbeddingDownloading(false)
+    }
+  }
+
+  const handleEmbedEmails = async () => {
+    try {
+      await embedAllEmails()
+      const count = await getEmbeddedCount()
+      setEmbeddedCount(count)
+    } catch (err) {
+      console.error('Embedding failed:', err)
+    }
+  }
 
   const handleDownload = async (modelId: string) => {
     setSelectedModel(modelId)
@@ -213,6 +259,90 @@ export default function ModelSettings({ onClose }: ModelSettingsProps) {
               <p className="font-serif text-sm">{error}</p>
             </div>
           )}
+        </div>
+
+        {/* Semantic Search / Embedding Model Section */}
+        <div className="border-[2px] border-foreground p-6 mb-8">
+          <h2 className="font-mono text-xs uppercase tracking-widest mb-4">
+            Semantic Search
+          </h2>
+          <div className="flex items-center gap-3 mb-4">
+            <div
+              className={`w-3 h-3 rounded-full ${
+                ragInitialized
+                  ? 'bg-green-500'
+                  : embeddingDownloading || isEmbedding
+                    ? 'bg-yellow-500'
+                    : 'bg-gray-500'
+              }`}
+            />
+            <span className="font-serif text-lg">
+              {ragInitialized
+                ? `Ready (${embeddedCount} emails embedded)`
+                : embeddingDownloading
+                  ? 'Downloading model...'
+                  : isEmbedding
+                    ? 'Embedding emails...'
+                    : 'Not downloaded'}
+            </span>
+          </div>
+
+          <p className="font-serif text-sm text-mutedForeground mb-4">
+            all-MiniLM-L6-v2 (~33 MB) - enables semantic email search and AI-powered chat context
+          </p>
+
+          {embeddingDownloading && (
+            <div className="mb-4">
+              <div className="h-3 bg-muted border border-borderLight overflow-hidden">
+                <div className="h-full w-1/3 bg-foreground animate-pulse" />
+              </div>
+              <p className="font-serif text-sm text-mutedForeground mt-2">
+                Downloading embedding model from HuggingFace...
+              </p>
+            </div>
+          )}
+
+          {isEmbedding && embeddingStatus && (
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-xs uppercase tracking-widest">
+                  Embedding Progress
+                </span>
+                <span className="font-mono text-xs">
+                  {embeddingStatus.embedded_emails} / {embeddingStatus.total_emails}
+                </span>
+              </div>
+              <div className="h-3 bg-muted border border-borderLight overflow-hidden">
+                <div
+                  className="h-full bg-foreground transition-all duration-300"
+                  style={{
+                    width: `${embeddingStatus.total_emails > 0 ? (embeddingStatus.embedded_emails / embeddingStatus.total_emails) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            {!embeddingModelDownloaded && !ragInitialized && (
+              <button
+                onClick={handleEmbeddingDownload}
+                disabled={embeddingDownloading}
+                className="px-4 py-2 border-[2px] border-foreground font-mono text-xs uppercase tracking-widest hover:bg-foreground hover:text-background transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {embeddingDownloading ? 'Downloading...' : 'Download Model'}
+              </button>
+            )}
+            {ragInitialized && (
+              <button
+                onClick={handleEmbedEmails}
+                disabled={isEmbedding}
+                className="px-4 py-2 border-[2px] border-foreground font-mono text-xs uppercase tracking-widest hover:bg-foreground hover:text-background transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isEmbedding ? 'Embedding...' : 'Embed Emails'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Downloaded Models Section */}

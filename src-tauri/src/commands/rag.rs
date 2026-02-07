@@ -3,7 +3,7 @@
 //! Tauri commands for embedding generation, semantic search, and contextual AI chat.
 
 use crate::db::vector_db::{EmbeddingStatus, VectorDatabase};
-use crate::llm::embeddings::EmbeddingEngine;
+use crate::llm::embeddings::{self, EmbeddingEngine, DEFAULT_EMBEDDING_MODEL};
 use crate::llm::rag::{calculate_text_hash, prepare_email_text, RagEngine};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 
 lazy_static! {
-    static ref RAG_ENGINE: Mutex<Option<RagEngine>> = Mutex::new(None);
+    pub static ref RAG_ENGINE: Mutex<Option<RagEngine>> = Mutex::new(None);
     static ref EMBEDDING_ENGINE: Mutex<Option<Arc<EmbeddingEngine>>> = Mutex::new(None);
     static ref VECTOR_DB: Mutex<Option<Arc<VectorDatabase>>> = Mutex::new(None);
 }
@@ -35,6 +35,14 @@ pub struct EmbeddingProgress {
 /// Initialize the RAG system (embedding engine + vector database)
 #[tauri::command]
 pub async fn init_rag(app: AppHandle) -> Result<bool, String> {
+    // Skip if already initialized
+    {
+        let guard = RAG_ENGINE.lock().unwrap();
+        if guard.as_ref().map(|r| r.is_initialized()).unwrap_or(false) {
+            return Ok(true);
+        }
+    }
+
     // Get app data directory for vector database
     let app_data_dir = app
         .path()
@@ -58,8 +66,19 @@ pub async fn init_rag(app: AppHandle) -> Result<bool, String> {
         *db_guard = Some(vector_db.clone());
     }
 
-    // Try to initialize embedding engine (may take time for first model download)
-    match EmbeddingEngine::new(None) {
+    // Download embedding model (async, with direct HTTP fallback)
+    let (config_path, tokenizer_path, weights_path) =
+        embeddings::download_embedding_model(None)
+            .await
+            .map_err(|e| format!("Failed to download embedding model: {}", e))?;
+
+    // Load embedding engine from downloaded paths
+    match EmbeddingEngine::from_paths(
+        DEFAULT_EMBEDDING_MODEL,
+        &config_path,
+        &tokenizer_path,
+        &weights_path,
+    ) {
         Ok(engine) => {
             let engine = Arc::new(engine);
             {
@@ -93,6 +112,12 @@ pub fn is_rag_ready() -> bool {
         .as_ref()
         .map(|r| r.is_initialized())
         .unwrap_or(false)
+}
+
+/// Check if the embedding model is downloaded
+#[tauri::command]
+pub fn is_embedding_model_downloaded() -> bool {
+    crate::llm::embeddings::is_model_downloaded(None)
 }
 
 /// Get embedding status
@@ -239,23 +264,48 @@ pub async fn embed_all_emails(app: AppHandle) -> Result<i64, String> {
 
 /// Semantic search for emails
 #[tauri::command]
-pub fn search_emails_semantic(query: String, limit: usize) -> Result<Vec<SearchResult>, String> {
-    let rag_guard = RAG_ENGINE.lock().unwrap();
-    let rag = rag_guard.as_ref().ok_or("RAG engine not initialized")?;
+pub fn search_emails_semantic(
+    app: AppHandle,
+    query: String,
+    limit: usize,
+) -> Result<Vec<SearchResult>, String> {
+    // Step 1: Lock RAG_ENGINE, perform search, drop lock
+    let similar = {
+        let rag_guard = RAG_ENGINE.lock().unwrap();
+        let rag = rag_guard.as_ref().ok_or("RAG engine not initialized")?;
+        rag.search_similar(&query, limit, None)
+            .map_err(|e| format!("Failed to search: {}", e))?
+    };
 
-    let similar = rag
-        .search_similar(&query, limit, None)
-        .map_err(|e| format!("Failed to search: {}", e))?;
+    // Step 2: Open EmailDatabase to enrich results with metadata
+    let email_db = crate::db::EmailDatabase::new(
+        app.path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?
+            .join("emails.db"),
+    )
+    .map_err(|e| format!("Failed to open email database: {}", e))?;
 
-    // Convert to SearchResult (email metadata can be fetched separately)
     let results: Vec<SearchResult> = similar
         .into_iter()
-        .map(|s| SearchResult {
-            email_id: s.email_id,
-            similarity: s.similarity,
-            subject: None,
-            from: None,
-            snippet: None,
+        .map(|s| {
+            let (subject, from, snippet) =
+                if let Ok(Some(email)) = email_db.get_email_by_id(&s.email_id) {
+                    (
+                        Some(email.subject),
+                        Some(email.from),
+                        Some(email.snippet),
+                    )
+                } else {
+                    (None, None, None)
+                };
+            SearchResult {
+                email_id: s.email_id,
+                similarity: s.similarity,
+                subject,
+                from,
+                snippet,
+            }
         })
         .collect();
 
@@ -317,19 +367,96 @@ pub fn clear_embeddings() -> Result<(), String> {
 
 /// Chat with RAG context
 #[tauri::command]
-pub fn chat_with_context(query: String, limit: usize) -> Result<String, String> {
-    // This would integrate with the existing summarizer for contextual responses
-    // For now, we return searched email IDs as context
-    let results = search_emails_semantic(query.clone(), limit)?;
+pub fn chat_with_context(
+    app: AppHandle,
+    query: String,
+    limit: usize,
+) -> Result<String, String> {
+    use crate::llm::rag::RetrievedContext;
 
-    if results.is_empty() {
+    // Step 1: Lock RAG_ENGINE → semantic search → drop lock
+    let similar = {
+        let rag_guard = RAG_ENGINE.lock().unwrap();
+        let rag = rag_guard.as_ref().ok_or("RAG engine not initialized")?;
+        rag.search_similar(&query, limit, None)
+            .map_err(|e| format!("Failed to search: {}", e))?
+    };
+
+    if similar.is_empty() {
         return Ok(format!("No relevant emails found for: {}", query));
     }
 
-    let email_ids: Vec<String> = results.iter().map(|r| r.email_id.clone()).collect();
+    // Step 2: Open EmailDatabase → fetch metadata → build RetrievedContext list
+    let email_db = crate::db::EmailDatabase::new(
+        app.path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data dir: {}", e))?
+            .join("emails.db"),
+    )
+    .map_err(|e| format!("Failed to open email database: {}", e))?;
+
+    let contexts: Vec<RetrievedContext> = similar
+        .into_iter()
+        .filter_map(|s| {
+            if let Ok(Some(email)) = email_db.get_email_by_id(&s.email_id) {
+                let snippet = email
+                    .body_plain
+                    .as_deref()
+                    .unwrap_or(&email.snippet)
+                    .chars()
+                    .take(200)
+                    .collect::<String>();
+                Some(RetrievedContext {
+                    email_id: s.email_id,
+                    subject: email.subject,
+                    from: email.from,
+                    snippet,
+                    similarity: s.similarity,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if contexts.is_empty() {
+        return Ok(format!("No relevant emails found for: {}", query));
+    }
+
+    // Build context string for the LLM
+    let context_str = contexts
+        .iter()
+        .enumerate()
+        .map(|(i, ctx)| {
+            format!(
+                "Email {}: From: {} | Subject: {} | {}",
+                i + 1,
+                ctx.from,
+                ctx.subject,
+                ctx.snippet
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // Step 3: Lock SUMMARIZER → generate response → drop lock
+    let summarizer_guard = crate::commands::ai::SUMMARIZER.lock().unwrap();
+    if let Some(summarizer) = summarizer_guard.as_ref() {
+        if summarizer.is_model_loaded() {
+            match summarizer.chat(&query, Some(&context_str)) {
+                Ok(response) => return Ok(response),
+                Err(e) => {
+                    eprintln!("[RAG Chat] LLM error, returning formatted results: {}", e);
+                }
+            }
+        }
+    }
+    drop(summarizer_guard);
+
+    // Fallback: return formatted email list if LLM not available
     Ok(format!(
-        "Found {} relevant emails: {}",
-        results.len(),
-        email_ids.join(", ")
+        "Found {} relevant emails:\n\n{}\n\n(AI model not loaded for detailed analysis)",
+        contexts.len(),
+        context_str
     ))
 }

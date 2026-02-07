@@ -65,6 +65,7 @@ pub fn run() {
             commands::get_smart_inbox,
             commands::get_emails_by_category,
             commands::get_indexing_status,
+            commands::reset_indexing_status,
             commands::start_email_indexing,
             commands::search_smart_emails,
             commands::chat_query,
@@ -84,6 +85,7 @@ pub fn run() {
             // RAG commands
             commands::init_rag,
             commands::is_rag_ready,
+            commands::is_embedding_model_downloaded,
             commands::get_embedding_status,
             commands::embed_email,
             commands::embed_all_emails,

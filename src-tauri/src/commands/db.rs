@@ -85,6 +85,17 @@ pub async fn get_indexing_status(db: State<'_, DbState>) -> Result<IndexingStatu
 }
 
 #[tauri::command]
+pub async fn reset_indexing_status(db: State<'_, DbState>) -> Result<(), String> {
+    let db_lock = db.lock().unwrap();
+    let database = db_lock.as_ref().ok_or("Database not initialized")?;
+
+    database
+        .update_indexing_status(false, None, None, None)
+        .map_err(|e: anyhow::Error| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn start_email_indexing<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     _db: State<'_, DbState>,
@@ -150,10 +161,18 @@ async fn index_emails_background<R: tauri::Runtime>(
 
     // Fetch emails from Gmail
     let gmail_client = crate::email::gmail::GmailClient::new(access_token);
-    let response = gmail_client
+    let response = match gmail_client
         .list_messages(Some(max_emails as u32), None, None)
         .await
-        .context("Failed to fetch emails from Gmail")?;
+    {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[Indexing] Gmail fetch failed: {}", e);
+            let _ = database.update_indexing_status(false, None, None, None);
+            let _ = app.emit("indexing:error", format!("Failed to fetch emails: {}", e));
+            return Err(anyhow::anyhow!("Failed to fetch emails from Gmail: {}", e));
+        }
+    };
 
     let message_ids = response.messages.unwrap_or_default();
     let total = message_ids.len() as i64;
@@ -425,6 +444,7 @@ fn format_email_context(emails: &[EmailWithInsight], max_emails: usize) -> Strin
 
 #[tauri::command]
 pub async fn chat_query(
+    app: tauri::AppHandle,
     db: State<'_, DbState>,
     query: String,
 ) -> Result<String, String> {
@@ -434,6 +454,20 @@ pub async fn chat_query(
     }
 
     let intent = detect_intent(&query);
+
+    // Try RAG for search and general email questions
+    if matches!(intent, QueryIntent::SearchEmails(_) | QueryIntent::GeneralEmailQuestion) {
+        let rag_ready = {
+            let guard = crate::commands::rag::RAG_ENGINE.lock().unwrap();
+            guard.as_ref().map(|r| r.is_initialized()).unwrap_or(false)
+        };
+        if rag_ready {
+            match crate::commands::rag::chat_with_context(app.clone(), query.clone(), 5) {
+                Ok(response) => return Ok(response),
+                Err(e) => eprintln!("[Chat] RAG fallback to SQL: {}", e),
+            }
+        }
+    }
 
     // Get relevant emails based on intent
     let (emails, context_description) = {

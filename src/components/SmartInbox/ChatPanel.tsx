@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { useAiStore } from '../../stores/aiStore'
+import { useRagStore } from '../../stores/ragStore'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -23,6 +25,9 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const { isModelLoaded, modelStatus } = useAiStore()
+  const { isInitialized: ragReady, embeddingStatus } = useRagStore()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -88,6 +93,33 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
         >
           ✕
         </button>
+      </div>
+
+      {/* Status Bar */}
+      <div className="px-4 py-1.5 border-b border-borderLight flex items-center gap-3 text-xs font-mono">
+        <div className="flex items-center gap-1.5">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isModelLoaded
+                ? 'bg-green-500'
+                : modelStatus.status === 'loading' || modelStatus.status === 'downloading'
+                  ? 'bg-yellow-500 animate-pulse'
+                  : 'bg-gray-400'
+            }`}
+          />
+          <span className="text-mutedForeground">
+            {isModelLoaded
+              ? 'AI Ready'
+              : modelStatus.status === 'loading' || modelStatus.status === 'downloading'
+                ? 'AI Loading...'
+                : 'AI Not Set Up'}
+          </span>
+        </div>
+        {ragReady && embeddingStatus && (
+          <span className="text-mutedForeground">
+            | {embeddingStatus.embedded_emails} emails searchable
+          </span>
+        )}
       </div>
 
       {/* Messages */}

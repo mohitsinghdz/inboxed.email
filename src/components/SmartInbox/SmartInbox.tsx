@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSmartInboxStore } from '../../stores/smartInboxStore'
 import { useEmailStore } from '../../stores/emailStore'
+import { useRagStore } from '../../stores/ragStore'
 import { ChatPanel } from './ChatPanel'
 
 const PRIORITY_LABELS = {
@@ -22,10 +23,23 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
     indexingProgress,
     fetchSmartInbox,
     getIndexingStatus,
+    resetIndexingStatus,
     startIndexing,
     initDatabase,
     setupIndexingListeners,
   } = useSmartInboxStore()
+
+  const {
+    isInitialized: ragReady,
+    isModelDownloaded,
+    isEmbedding,
+    embeddingProgress,
+    embeddingStatus,
+    allEmailsEmbedded,
+    embedAllEmails,
+    downloadAndInitRag,
+    getEmbeddingStatus,
+  } = useRagStore()
 
   const { selectEmail } = useEmailStore()
   const [showChat, setShowChat] = useState(false)
@@ -37,9 +51,27 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
       await initDatabase()
       await getIndexingStatus()
 
+      // Reset stale indexing state from a previous interrupted run
+      const currentStatus = useSmartInboxStore.getState().indexingStatus
+      if (currentStatus?.is_indexing) {
+        await resetIndexingStatus()
+      }
+
       // Check if we have any indexed emails
       if (emails.length === 0) {
         await fetchSmartInbox()
+      }
+
+      // Auto-init RAG if embedding model is already downloaded
+      const ragStore = useRagStore.getState()
+      const downloaded = await ragStore.checkModelDownloaded()
+      if (downloaded && !ragStore.isInitialized) {
+        await ragStore.initRag()
+      }
+
+      // Fetch embedding status to know if all emails are indexed
+      if (ragStore.isInitialized || downloaded) {
+        await ragStore.getEmbeddingStatus()
       }
     }
     init()
@@ -62,6 +94,19 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
       await startIndexing(100)
     } catch (error) {
       console.error('Failed to start indexing:', error)
+    }
+  }
+
+  const handleBuildIndex = async () => {
+    try {
+      if (!ragReady) {
+        // Download and init the embedding model first
+        await downloadAndInitRag()
+      }
+      await embedAllEmails()
+      await getEmbeddingStatus()
+    } catch (error) {
+      console.error('Failed to build index:', error)
     }
   }
 
@@ -112,11 +157,26 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
     <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
       {/* Action Bar */}
       <div className="px-6 py-3 border-b-[2px] border-foreground flex items-center justify-between flex-shrink-0">
-        <p className="text-sm text-mutedForeground">
-          {indexingStatus?.is_indexing
-            ? `Indexing emails... ${indexingProgress}%`
-            : `${emails.length} emails sorted by importance`}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-mutedForeground">
+            {indexingStatus?.is_indexing
+              ? `Indexing emails... ${indexingProgress}%`
+              : `${emails.length} emails sorted by importance`}
+          </p>
+          {ragReady && !indexingStatus?.is_indexing && !isEmbedding && embeddingStatus && (
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono uppercase tracking-wider ${
+                allEmailsEmbedded
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}
+            >
+              {allEmailsEmbedded
+                ? `${embeddingStatus.embedded_emails} indexed`
+                : `${embeddingStatus.embedded_emails}/${embeddingStatus.total_emails} indexed`}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {onCompose && (
             <button
@@ -135,6 +195,14 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
           >
             {showChat ? 'Hide Chat' : 'Ask AI'}
           </button>
+          {!indexingStatus?.is_indexing && !isEmbedding && !allEmailsEmbedded && hasIndexed && (
+            <button
+              onClick={handleBuildIndex}
+              className="px-4 py-2 border-[2px] border-foreground hover:bg-foreground hover:text-background text-sm font-mono uppercase tracking-wider transition-colors"
+            >
+              {isModelDownloaded ? 'Build Index' : 'Setup AI Index'}
+            </button>
+          )}
           {!indexingStatus?.is_indexing && (
             <button
               onClick={handleStartIndexing}
@@ -159,6 +227,32 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
             <div
               className="h-full bg-foreground transition-all duration-300"
               style={{ width: `${indexingProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Embedding Progress */}
+      {isEmbedding && embeddingProgress && (
+        <div className="px-6 py-3 bg-blue-50 border-b-[2px] border-foreground flex-shrink-0">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="font-mono">
+              Building AI index: {embeddingProgress.embedded} / {embeddingProgress.total}
+            </span>
+            <span className="font-mono">
+              {embeddingProgress.total > 0
+                ? Math.round((embeddingProgress.embedded / embeddingProgress.total) * 100)
+                : 0}%
+            </span>
+          </div>
+          <div className="w-full h-2 bg-blue-200">
+            <div
+              className="h-full bg-blue-600 transition-all duration-300"
+              style={{
+                width: `${embeddingProgress.total > 0
+                  ? (embeddingProgress.embedded / embeddingProgress.total) * 100
+                  : 0}%`,
+              }}
             />
           </div>
         </div>

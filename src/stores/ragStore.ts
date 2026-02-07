@@ -28,15 +28,19 @@ export interface EmbeddingProgress {
 interface RagStore {
     // State
     isInitialized: boolean
+    isModelDownloaded: boolean
     isEmbedding: boolean
     embeddingProgress: EmbeddingProgress | null
     embeddingStatus: EmbeddingStatus | null
+    allEmailsEmbedded: boolean
     searchResults: SearchResult[]
     error: string | null
 
     // Actions
     initRag: () => Promise<boolean>
     checkRagReady: () => Promise<boolean>
+    checkModelDownloaded: () => Promise<boolean>
+    downloadAndInitRag: () => Promise<boolean>
     getEmbeddingStatus: () => Promise<void>
     embedAllEmails: () => Promise<number>
     embedEmail: (emailId: string, subject: string, from: string, body: string) => Promise<void>
@@ -50,11 +54,42 @@ interface RagStore {
 
 export const useRagStore = create<RagStore>((set, get) => ({
     isInitialized: false,
+    isModelDownloaded: false,
     isEmbedding: false,
     embeddingProgress: null,
     embeddingStatus: null,
+    allEmailsEmbedded: false,
     searchResults: [],
     error: null,
+
+    checkModelDownloaded: async () => {
+        try {
+            const downloaded = await invoke<boolean>('is_embedding_model_downloaded')
+            set({ isModelDownloaded: downloaded })
+            return downloaded
+        } catch (error) {
+            console.error('Failed to check embedding model status:', error)
+            return false
+        }
+    },
+
+    downloadAndInitRag: async () => {
+        try {
+            set({ error: null })
+            // init_rag downloads the model via HF Hub if needed, then initializes
+            const success = await invoke<boolean>('init_rag')
+            set({ isInitialized: success, isModelDownloaded: success })
+
+            if (success) {
+                await get().getEmbeddingStatus()
+            }
+
+            return success
+        } catch (error) {
+            set({ error: (error as Error).toString() })
+            return false
+        }
+    },
 
     initRag: async () => {
         try {
@@ -90,6 +125,7 @@ export const useRagStore = create<RagStore>((set, get) => ({
             set({
                 embeddingStatus: status,
                 isEmbedding: status.is_embedding,
+                allEmailsEmbedded: status.total_emails > 0 && status.embedded_emails >= status.total_emails,
             })
         } catch (error) {
             console.error('Failed to get embedding status:', error)
@@ -109,7 +145,7 @@ export const useRagStore = create<RagStore>((set, get) => ({
             })
 
             // Listen for completion
-            completeUnlisten = await listen<number>('embedding:complete', (event) => {
+            completeUnlisten = await listen<number>('embedding:complete', () => {
                 set({
                     isEmbedding: false,
                     embeddingProgress: null,
@@ -201,6 +237,7 @@ export const useRagStore = create<RagStore>((set, get) => ({
             isEmbedding: false,
             embeddingProgress: null,
             embeddingStatus: null,
+            allEmailsEmbedded: false,
             searchResults: [],
             error: null,
         })

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useAiStore } from './aiStore'
+import { useRagStore } from './ragStore'
 
 export interface EmailWithInsight {
   id: string
@@ -41,6 +42,7 @@ interface SmartInboxStore {
   getEmailsByCategory: (category: string, limit?: number) => Promise<void>
   searchEmails: (query: string, limit?: number) => Promise<void>
   getIndexingStatus: () => Promise<void>
+  resetIndexingStatus: () => Promise<void>
   startIndexing: (maxEmails?: number) => Promise<void>
   initDatabase: () => Promise<void>
   setupIndexingListeners: () => Promise<() => void>
@@ -110,6 +112,15 @@ export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
     }
   },
 
+  resetIndexingStatus: async () => {
+    try {
+      await invoke('reset_indexing_status')
+      await get().getIndexingStatus()
+    } catch (error) {
+      console.error('Failed to reset indexing status:', error)
+    }
+  },
+
   startIndexing: async (maxEmails = 100) => {
     try {
       set({ error: null })
@@ -153,8 +164,21 @@ export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
       set({ indexingProgress: 100 })
       get().getIndexingStatus()
       get().fetchSmartInbox()
+
+      // Auto-embed after indexing completes if RAG is initialized
+      const ragStore = useRagStore.getState()
+      if (ragStore.isInitialized) {
+        ragStore.embedAllEmails()
+      }
     })
     unlisteners.push(completeUnlisten)
+
+    // Listen for errors
+    const errorUnlisten = await listen<string>('indexing:error', (event) => {
+      set({ error: `Indexing failed: ${event.payload}` })
+      get().getIndexingStatus()
+    })
+    unlisteners.push(errorUnlisten)
 
     // Return cleanup function
     return () => {

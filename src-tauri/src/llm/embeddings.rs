@@ -6,13 +6,16 @@ use anyhow::{anyhow, Context, Result};
 use candle_core::{Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config, DTYPE};
-use hf_hub::{api::sync::Api, Repo, RepoType};
-use std::path::PathBuf;
+use hf_hub::{Repo, RepoType};
+use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 
 /// Default embedding model - small and fast
 pub const DEFAULT_EMBEDDING_MODEL: &str = "sentence-transformers/all-MiniLM-L6-v2";
 pub const EMBEDDING_DIMENSIONS: usize = 384;
+
+/// Files needed for the embedding model
+const MODEL_FILES: [&str; 3] = ["config.json", "tokenizer.json", "model.safetensors"];
 
 /// Embedding engine for generating text embeddings
 pub struct EmbeddingEngine {
@@ -22,41 +25,161 @@ pub struct EmbeddingEngine {
     model_id: String,
 }
 
+/// Get the custom cache directory for embedding model files
+fn get_custom_cache_dir(model_id: &str) -> Result<PathBuf> {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+    let cache_dir = PathBuf::from(home)
+        .join(".cache")
+        .join("inboxed")
+        .join("embedding_models")
+        .join(model_id.replace('/', "--"));
+    Ok(cache_dir)
+}
+
+/// Check if model files exist in custom cache
+fn check_custom_cache(model_id: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    let cache_dir = get_custom_cache_dir(model_id).ok()?;
+    let config = cache_dir.join("config.json");
+    let tokenizer = cache_dir.join("tokenizer.json");
+    let weights = cache_dir.join("model.safetensors");
+    if config.exists() && tokenizer.exists() && weights.exists() {
+        Some((config, tokenizer, weights))
+    } else {
+        None
+    }
+}
+
+/// Check if model files exist in hf-hub cache
+fn check_hf_cache(model_id: &str) -> Option<(PathBuf, PathBuf, PathBuf)> {
+    let cache = hf_hub::Cache::default();
+    let repo = cache.repo(Repo::new(model_id.to_string(), RepoType::Model));
+    if let (Some(c), Some(t), Some(w)) = (
+        repo.get("config.json"),
+        repo.get("tokenizer.json"),
+        repo.get("model.safetensors"),
+    ) {
+        Some((c, t, w))
+    } else {
+        None
+    }
+}
+
+/// Download embedding model files directly via HTTP from HuggingFace CDN.
+/// Falls back from hf-hub API to direct HTTP download.
+pub async fn download_embedding_model(
+    model_id: Option<&str>,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
+    let model_id = model_id.unwrap_or(DEFAULT_EMBEDDING_MODEL);
+
+    // 1. Check hf-hub cache
+    if let Some(paths) = check_hf_cache(model_id) {
+        eprintln!("Using hf-hub cached embedding model");
+        return Ok(paths);
+    }
+
+    // 2. Check custom cache
+    if let Some(paths) = check_custom_cache(model_id) {
+        eprintln!("Using custom cached embedding model");
+        return Ok(paths);
+    }
+
+    // 3. Try hf-hub API download first
+    eprintln!("Attempting hf-hub API download for embedding model...");
+    match try_hf_hub_download(model_id) {
+        Ok(paths) => return Ok(paths),
+        Err(e) => {
+            eprintln!(
+                "hf-hub download failed ({}), falling back to direct HTTP...",
+                e
+            );
+        }
+    }
+
+    // 4. Direct HTTP download from HuggingFace CDN
+    eprintln!("Downloading embedding model via direct HTTP...");
+    let cache_dir = get_custom_cache_dir(model_id)?;
+    std::fs::create_dir_all(&cache_dir)
+        .with_context(|| format!("Failed to create cache dir: {}", cache_dir.display()))?;
+
+    let base_url = format!("https://huggingface.co/{}/resolve/main", model_id);
+    let client = reqwest::Client::new();
+
+    for filename in &MODEL_FILES {
+        let dest = cache_dir.join(filename);
+        if dest.exists() {
+            eprintln!("  {} already downloaded", filename);
+            continue;
+        }
+
+        let url = format!("{}/{}", base_url, filename);
+        eprintln!("  Downloading {}...", filename);
+
+        let response = client
+            .get(&url)
+            .header("User-Agent", "inboxed-email-client/0.1")
+            .send()
+            .await
+            .with_context(|| format!("HTTP request failed for {}", filename))?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "HTTP {} downloading {} from {}",
+                response.status(),
+                filename,
+                url
+            ));
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .with_context(|| format!("Failed to read response body for {}", filename))?;
+
+        std::fs::write(&dest, &bytes)
+            .with_context(|| format!("Failed to write {}", dest.display()))?;
+
+        eprintln!("  Downloaded {} ({:.2} MB)", filename, bytes.len() as f64 / 1_048_576.0);
+    }
+
+    eprintln!("Embedding model download complete");
+    Ok((
+        cache_dir.join("config.json"),
+        cache_dir.join("tokenizer.json"),
+        cache_dir.join("model.safetensors"),
+    ))
+}
+
+/// Try downloading via hf-hub crate API (sync)
+fn try_hf_hub_download(model_id: &str) -> Result<(PathBuf, PathBuf, PathBuf)> {
+    let api = hf_hub::api::sync::Api::new()?;
+    let repo = api.repo(Repo::new(model_id.to_string(), RepoType::Model));
+
+    let c = repo.get("config.json")?;
+    let t = repo.get("tokenizer.json")?;
+    let w = repo.get("model.safetensors")?;
+    Ok((c, t, w))
+}
+
 impl EmbeddingEngine {
-    /// Create a new embedding engine, downloading the model if necessary
-    pub fn new(model_id: Option<&str>) -> Result<Self> {
-        let model_id = model_id.unwrap_or(DEFAULT_EMBEDDING_MODEL);
-
-        // Use Metal acceleration on macOS, fall back to CPU
+    /// Create a new embedding engine from pre-downloaded file paths
+    pub fn from_paths(
+        model_id: &str,
+        config_path: &Path,
+        tokenizer_path: &Path,
+        weights_path: &Path,
+    ) -> Result<Self> {
         let device = Device::new_metal(0).unwrap_or(Device::Cpu);
-
         eprintln!("Loading embedding model '{}' on {:?}", model_id, device);
 
-        // Download model files from HuggingFace
-        let api = Api::new()?;
-        let repo = api.repo(Repo::new(model_id.to_string(), RepoType::Model));
-
-        let config_path = repo
-            .get("config.json")
-            .with_context(|| format!("Failed to download config.json from {}", model_id))?;
-        let tokenizer_path = repo
-            .get("tokenizer.json")
-            .with_context(|| format!("Failed to download tokenizer.json from {}", model_id))?;
-        let weights_path = repo
-            .get("model.safetensors")
-            .with_context(|| format!("Failed to download model.safetensors from {}", model_id))?;
-
-        // Load config
-        let config_str = std::fs::read_to_string(&config_path)?;
+        let config_str = std::fs::read_to_string(config_path)?;
         let config: Config = serde_json::from_str(&config_str)?;
 
-        // Load tokenizer
-        let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        let tokenizer = Tokenizer::from_file(tokenizer_path)
             .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
 
-        // Load model weights
-        let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[weights_path], DTYPE, &device)? };
-
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(&[weights_path.to_path_buf()], DTYPE, &device)?
+        };
         let model = BertModel::load(vb, &config)?;
 
         eprintln!("Embedding model loaded successfully");
@@ -67,6 +190,22 @@ impl EmbeddingEngine {
             device,
             model_id: model_id.to_string(),
         })
+    }
+
+    /// Create a new embedding engine, downloading the model if necessary (sync, uses cache only)
+    pub fn new(model_id: Option<&str>) -> Result<Self> {
+        let model_id = model_id.unwrap_or(DEFAULT_EMBEDDING_MODEL);
+
+        // Try hf-hub cache, then custom cache
+        let (config_path, tokenizer_path, weights_path) = check_hf_cache(model_id)
+            .or_else(|| check_custom_cache(model_id))
+            .ok_or_else(|| {
+                anyhow!(
+                    "Embedding model not found in cache. Use init_rag to download it first."
+                )
+            })?;
+
+        Self::from_paths(model_id, &config_path, &tokenizer_path, &weights_path)
     }
 
     /// Generate embedding for a single text
@@ -206,19 +345,10 @@ impl EmbeddingEngine {
     }
 }
 
-/// Check if the embedding model is downloaded
+/// Check if the embedding model is downloaded (local cache only, no network)
 pub fn is_model_downloaded(model_id: Option<&str>) -> bool {
     let model_id = model_id.unwrap_or(DEFAULT_EMBEDDING_MODEL);
-
-    if let Ok(api) = Api::new() {
-        let repo = api.repo(Repo::new(model_id.to_string(), RepoType::Model));
-        // Check if model files exist in cache
-        repo.get("config.json").is_ok()
-            && repo.get("tokenizer.json").is_ok()
-            && repo.get("model.safetensors").is_ok()
-    } else {
-        false
-    }
+    check_hf_cache(model_id).is_some() || check_custom_cache(model_id).is_some()
 }
 
 /// Get the cache path for embedding models

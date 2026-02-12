@@ -78,8 +78,9 @@ impl LlmEngine {
         let backend = get_backend()?;
 
         // Configure model parameters
-        // Metal/GPU acceleration is enabled by default on macOS
-        let model_params = LlamaModelParams::default();
+        // Metal/GPU acceleration is enabled by default on macOS but we need to explicitly offload layers
+        let model_params = LlamaModelParams::default()
+            .with_n_gpu_layers(100); // Offload all layers to GPU
 
         // Load the model
         let model = LlamaModel::load_from_file(&backend, model_path, &model_params)

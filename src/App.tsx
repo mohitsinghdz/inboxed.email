@@ -9,9 +9,19 @@ import { ModelSettings, StorageSettings } from './components/Settings'
 import { SmartInbox } from './components/SmartInbox'
 import { useAuthStore } from './stores/authStore'
 import { useAiStore } from './stores/aiStore'
+import { useEmailStore } from './stores/emailStore'
 
 type AppState = 'loading' | 'login' | 'setup' | 'ready'
 type ViewMode = 'smart' | 'classic'
+
+// Map frontend folder IDs to IMAP folder names
+const folderMapping: Record<string, string> = {
+  inbox: 'INBOX',
+  sent: 'Sent',
+  drafts: 'Drafts',
+  trash: 'Trash',
+  spam: 'Spam',
+}
 
 function App() {
   const [activeFolder, setActiveFolder] = useState('inbox')
@@ -22,6 +32,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('smart')
   const { authenticated, loading: authLoading, checkAuth } = useAuthStore()
   const { modelStatus, checkModelStatus, initAi, isAiReady } = useAiStore()
+  const { startSync, stopSync, refreshEmails, setFolder, loading: emailsLoading, refreshing: isRefreshing } = useEmailStore()
 
   useEffect(() => {
     checkAuth()
@@ -58,6 +69,24 @@ function App() {
       setAppState('ready')
     }
   }, [authLoading, authenticated, modelStatus, isAiReady])
+
+  // Start email sync when app is ready
+  useEffect(() => {
+    if (appState === 'ready') {
+      startSync()
+      return () => stopSync()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appState])
+
+  // Fetch emails when folder changes (only in classic view)
+  useEffect(() => {
+    if (appState === 'ready' && viewMode === 'classic') {
+      const imapFolder = folderMapping[activeFolder] || 'INBOX'
+      setFolder(imapFolder)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFolder, viewMode, appState])
 
   // Loading state
   if (appState === 'loading') {
@@ -105,7 +134,19 @@ function App() {
             <h2 className="font-display text-2xl tracking-tight capitalize">
               {viewMode === 'smart' ? 'Smart Inbox' : activeFolder}
             </h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={() => refreshEmails()}
+                disabled={emailsLoading || isRefreshing}
+                className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider border-[2px] border-foreground hover:bg-foreground/10 transition-colors disabled:opacity-50"
+                title="Refresh emails"
+              >
+                {emailsLoading || isRefreshing ? (
+                  <span className="inline-block w-3 h-3 border-[1.5px] border-foreground border-t-transparent animate-spin" />
+                ) : (
+                  '↻'
+                )}
+              </button>
               <button
                 onClick={() => setViewMode('smart')}
                 className={`px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors ${viewMode === 'smart'

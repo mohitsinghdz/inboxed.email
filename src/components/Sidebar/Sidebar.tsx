@@ -1,19 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useAiStore } from '../../stores/aiStore'
 import { useAccountStore } from '../../stores/accountStore'
+import { useEmailStore } from '../../stores/emailStore'
 
 interface Folder {
   id: string
   name: string
+  imapName: string
   count?: number
 }
 
 const folders: Folder[] = [
-  { id: 'inbox', name: 'Inbox', count: 0 },
-  { id: 'sent', name: 'Sent' },
-  { id: 'drafts', name: 'Drafts', count: 0 },
-  { id: 'trash', name: 'Trash' },
-  { id: 'spam', name: 'Spam' },
+  { id: 'inbox', name: 'Inbox', imapName: 'INBOX' },
+  { id: 'sent', name: 'Sent', imapName: 'Sent' },
+  { id: 'drafts', name: 'Drafts', imapName: 'Drafts' },
+  { id: 'trash', name: 'Trash', imapName: 'Trash' },
+  { id: 'spam', name: 'Spam', imapName: 'Spam' },
 ]
 
 interface SidebarProps {
@@ -27,6 +29,7 @@ export default function Sidebar({ onFolderSelect, onCompose, onOpenModelSettings
   const [activeFolder, setActiveFolder] = useState('inbox')
   const { modelStatus, downloadProgress, isModelLoaded } = useAiStore()
   const { accounts, activeAccountId, fetchAccounts, setActiveAccount } = useAccountStore()
+  const { folderStats } = useEmailStore()
   const [showAccountMenu, setShowAccountMenu] = useState(false)
 
   useEffect(() => {
@@ -44,6 +47,12 @@ export default function Sidebar({ onFolderSelect, onCompose, onOpenModelSettings
   }
 
   const activeAccount = accounts.find((a) => a.id === activeAccountId)
+
+  // Get unread count for a folder from folderStats
+  const getFolderCount = (imapName: string): number | undefined => {
+    const stats = folderStats.find((s) => s.folder_name === imapName)
+    return stats?.unread_count
+  }
 
   const getAiStatusText = () => {
     switch (modelStatus.status) {
@@ -165,30 +174,33 @@ export default function Sidebar({ onFolderSelect, onCompose, onOpenModelSettings
 
       {/* Navigation */}
       <nav className="flex-1 py-8">
-        {folders.map((folder) => (
-          <button
-            key={folder.id}
-            onClick={() => handleFolderClick(folder.id)}
-            className={`group w-full text-left px-6 py-4 border-l-[4px] transition-all duration-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-foreground focus-visible:outline-offset-[-3px] ${activeFolder === folder.id
-              ? 'border-foreground bg-foreground text-background'
-              : 'border-transparent hover:border-foreground hover:bg-muted'
-              }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-serif text-lg">{folder.name}</span>
-              {folder.count !== undefined && folder.count > 0 && (
-                <span
-                  className={`font-mono text-xs px-2 py-1 border ${activeFolder === folder.id
-                    ? 'border-background text-background'
-                    : 'border-foreground'
-                    }`}
-                >
-                  {folder.count}
-                </span>
-              )}
-            </div>
-          </button>
-        ))}
+        {folders.map((folder) => {
+          const unreadCount = getFolderCount(folder.imapName)
+          return (
+            <button
+              key={folder.id}
+              onClick={() => handleFolderClick(folder.id)}
+              className={`group w-full text-left px-6 py-4 border-l-[4px] transition-all duration-100 focus-visible:outline focus-visible:outline-3 focus-visible:outline-foreground focus-visible:outline-offset-[-3px] ${activeFolder === folder.id
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-transparent hover:border-foreground hover:bg-muted'
+                }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-serif text-lg">{folder.name}</span>
+                {unreadCount !== undefined && unreadCount > 0 && (
+                  <span
+                    className={`font-mono text-xs px-2 py-1 border ${activeFolder === folder.id
+                      ? 'border-background text-background'
+                      : 'border-foreground'
+                      }`}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </div>
+            </button>
+          )
+        })}
       </nav>
 
       {/* Settings Section */}

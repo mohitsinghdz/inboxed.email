@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import DOMPurify from 'dompurify'
 import { useEmailStore } from '../../stores/emailStore'
 import { useAiStore } from '../../stores/aiStore'
 import { ComposeModal } from '../Compose'
@@ -378,7 +379,13 @@ export default function EmailViewer() {
           {selectedEmail.body_html ? (
             <div
               className="font-serif text-lg leading-relaxed email-content"
-              dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(selectedEmail.body_html, {
+                  USE_PROFILES: { html: true },
+                  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+                  FORBID_ATTR: ['onmouseover', 'onclick', 'onerror', 'onload'],
+                }),
+              }}
               style={{
                 color: 'var(--foreground)',
               }}

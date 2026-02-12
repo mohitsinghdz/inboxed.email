@@ -30,12 +30,23 @@ export interface IndexingStatus {
   error_message: string | null
 }
 
+export type CategoryBucket = 'important' | 'subscriptions' | 'newsletters' | 'promotions'
+
+export const CATEGORY_BUCKETS: { id: CategoryBucket; label: string }[] = [
+  { id: 'important', label: 'Important' },
+  { id: 'subscriptions', label: 'Subscriptions' },
+  { id: 'newsletters', label: 'Newsletters' },
+  { id: 'promotions', label: 'Promotions' },
+]
+
 interface SmartInboxStore {
   emails: EmailWithInsight[]
   loading: boolean
   error: string | null
   indexingStatus: IndexingStatus | null
   indexingProgress: number
+  selectedAccountId: string | null
+  selectedCategory: CategoryBucket
 
   // Actions
   fetchSmartInbox: (limit?: number, offset?: number) => Promise<void>
@@ -46,6 +57,9 @@ interface SmartInboxStore {
   startIndexing: (maxEmails?: number) => Promise<void>
   initDatabase: () => Promise<void>
   setupIndexingListeners: () => Promise<() => void>
+  setSelectedAccount: (accountId: string) => void
+  setSelectedCategory: (category: CategoryBucket) => void
+  fetchEmailsByAccountAndCategory: (accountId: string, category: CategoryBucket, limit?: number) => Promise<void>
 }
 
 export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
@@ -54,6 +68,8 @@ export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
   error: null,
   indexingStatus: null,
   indexingProgress: 0,
+  selectedAccountId: null,
+  selectedCategory: 'important',
 
   initDatabase: async () => {
     try {
@@ -100,6 +116,34 @@ export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
       set({ emails, loading: false })
     } catch (error) {
       set({ error: (error as Error).toString(), loading: false })
+    }
+  },
+
+  fetchEmailsByAccountAndCategory: async (accountId: string, category: CategoryBucket, limit = 500) => {
+    try {
+      set({ loading: true, error: null })
+      const emails = await invoke<EmailWithInsight[]>('get_emails_by_account_and_category', {
+        accountId,
+        category,
+        limit,
+      })
+      set({ emails, loading: false })
+    } catch (error) {
+      set({ error: (error as Error).toString(), loading: false })
+    }
+  },
+
+  setSelectedAccount: (accountId: string) => {
+    set({ selectedAccountId: accountId })
+    const { selectedCategory } = get()
+    get().fetchEmailsByAccountAndCategory(accountId, selectedCategory)
+  },
+
+  setSelectedCategory: (category: CategoryBucket) => {
+    set({ selectedCategory: category })
+    const { selectedAccountId } = get()
+    if (selectedAccountId) {
+      get().fetchEmailsByAccountAndCategory(selectedAccountId, category)
     }
   },
 
@@ -169,10 +213,21 @@ export const useSmartInboxStore = create<SmartInboxStore>((set, get) => ({
       } catch (e) {
         console.error('[SmartInbox] Failed to get indexing status after complete:', e)
       }
-      try {
-        await get().fetchSmartInbox()
-      } catch (e) {
-        console.error('[SmartInbox] Failed to fetch smart inbox after complete:', e)
+
+      // Refresh with current account+category selection
+      const { selectedAccountId, selectedCategory } = get()
+      if (selectedAccountId) {
+        try {
+          await get().fetchEmailsByAccountAndCategory(selectedAccountId, selectedCategory)
+        } catch (e) {
+          console.error('[SmartInbox] Failed to fetch emails after complete:', e)
+        }
+      } else {
+        try {
+          await get().fetchSmartInbox()
+        } catch (e) {
+          console.error('[SmartInbox] Failed to fetch smart inbox after complete:', e)
+        }
       }
 
       // Auto-embed after indexing completes if RAG is initialized

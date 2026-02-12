@@ -9,6 +9,25 @@ export default function PostLocalAI() {
                 description="Cloud AI scans your data. Local Private LLMs run on your device. Discover why the future of email intelligence is offline."
                 canonical="https://inboxed.email/blog/local-ai-email"
                 type="article"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "Article",
+                    "headline": "Why Local Private LLMs are the Future of Email",
+                    "description": "Cloud AI scans your data. Local Private LLMs run on your device. Discover why the future of email intelligence is offline.",
+                    "datePublished": "2026-02-03",
+                    "dateModified": "2026-02-03",
+                    "author": {
+                        "@type": "Person",
+                        "name": "Mohit Singh",
+                        "jobTitle": "Founder, Inboxed"
+                    },
+                    "publisher": {
+                        "@type": "Organization",
+                        "name": "Inboxed",
+                        "url": "https://inboxed.email"
+                    },
+                    "mainEntityOfPage": "https://inboxed.email/blog/local-ai-email"
+                }}
             />
 
             <article className="max-w-3xl mx-auto">
@@ -17,8 +36,12 @@ export default function PostLocalAI() {
                     <h1 className="font-serif text-4xl md:text-6xl mb-6 leading-tight">
                         Why Local Private LLMs are the Future of Email
                     </h1>
-                    <div className="font-mono text-sm text-mutedForeground">
-                        February 3, 2026 • 5 min read
+                    <div className="font-mono text-sm text-mutedForeground flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <time dateTime="2026-02-03">February 3, 2026</time>
+                        <span>•</span>
+                        <span>5 min read</span>
+                        <span>•</span>
+                        <span>By <strong>Mohit Singh</strong>, Founder of Inboxed</span>
                     </div>
                 </div>
 
@@ -58,6 +81,20 @@ export default function PostLocalAI() {
                     <p>
                         This isn't a web wrapper. It's a native tool for professionals who value ownership.
                     </p>
+
+                    {/* Author Bio */}
+                    <div className="border-t border-black/20 pt-8 mt-12 flex items-start gap-6">
+                        <div className="w-14 h-14 rounded-full bg-black text-white flex items-center justify-center font-serif text-xl shrink-0">
+                            M
+                        </div>
+                        <div>
+                            <div className="font-bold text-lg mb-1">Mohit Singh</div>
+                            <div className="font-mono text-sm text-mutedForeground mb-2">Founder, Inboxed</div>
+                            <p className="text-base opacity-80">
+                                Building Inboxed to prove that AI-powered email doesn't require giving up your privacy. Previously worked on native macOS applications and on-device ML systems.
+                            </p>
+                        </div>
+                    </div>
 
                     <div className="bg-muted/30 p-8 border-l-4 border-black mt-12">
                         <h3 className="font-serif text-2xl mb-4">Try Inboxed Today</h3>

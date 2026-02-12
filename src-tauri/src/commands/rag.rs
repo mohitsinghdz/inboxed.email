@@ -95,6 +95,13 @@ pub async fn init_rag(app: AppHandle) -> Result<bool, String> {
             let mut rag = RagEngine::new();
             rag.init(engine, vector_db);
 
+            // Pre-compute category reference embeddings for zero-shot classification
+            if let Err(e) = rag.init_category_embeddings() {
+                eprintln!("[RAG] Warning: Failed to initialize category embeddings: {}", e);
+            } else {
+                eprintln!("[RAG] Category embeddings initialized for zero-shot classification");
+            }
+
             {
                 let mut rag_guard = RAG_ENGINE.lock().unwrap();
                 *rag_guard = Some(rag);

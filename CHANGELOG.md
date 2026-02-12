@@ -8,7 +8,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Email priority classification now uses LLM** — `generate_email_insights` calls `summarizer.classify_priority()` instead of keyword-based `classify_priority_internal()`; improved prompt with few-shot examples and `from` parameter for sender-aware scoring (HIGH=0.85, MEDIUM=0.5, LOW=0.2); starred emails get a +0.15 boost and upgrade to HIGH if at least MEDIUM
+- **Email category classification now uses embedding similarity** — `RagEngine::classify_category()` performs zero-shot classification by embedding the email and computing cosine similarity against 4 cached reference descriptions (promotions, newsletters, subscriptions, general); replaces keyword-based `categorize_email()`
+- `classify_priority` Tauri command and `Summarizer::classify_priority()` now accept a `from` parameter for sender-aware classification
+- Category reference embeddings are pre-computed during RAG initialization (`init_category_embeddings()`) so classification adds no model loading overhead
+- When models aren't loaded, priority defaults to MEDIUM (score 0.5) and category defaults to general — no keyword fallback
+
+### Removed
+- `classify_priority_internal()` — keyword-based priority scoring in `db.rs`
+- `categorize_email()` — keyword-based category matching in `db.rs`
+- `Summarizer::simple_priority()` — keyword-based fallback in `summarizer.rs`
+
 ### Added
+- **Smart Mode tab UI** — two-level tab system replacing the flat priority-sorted email list
+  - Account tabs (top row) for switching between email accounts; hidden for single-account users
+  - Category bucket tabs: Important, Subscriptions, Newsletters, Promotions
+  - Important tab is exclusive: starred and HIGH-priority emails only appear there, not in category tabs
+- New Tauri command `get_emails_by_account_and_category` with routing for Important vs category queries
+- New DB methods `get_important_emails_by_account` and `get_emails_by_account_and_category`
+- `CategoryBucket` type and `CATEGORY_BUCKETS` constant exported from `smartInboxStore`
+- Account and category selection state (`selectedAccountId`, `selectedCategory`) in smart inbox store
 - **Multi-account support** — connect Gmail, Outlook, Yahoo, or custom IMAP accounts from a single app
   - `accounts` table in SQLite for managing multiple email accounts
   - Account switcher UI in the sidebar with provider color indicators
@@ -33,6 +53,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Account store** (`accountStore.ts`) — frontend state management for multi-account
 
 ### Changed
+- Email categorization simplified from 6 categories (`conversation`, `meetings`, `financial`, `newsletters`, `notifications`, `general`) to 4 buckets (`promotions`, `newsletters`, `subscriptions`, `general`)
+- Improved category detection keywords: promotions (discount/sale/coupon), newsletters (digest/weekly update), subscriptions (noreply sender, billing, receipts, notifications)
+- Smart Inbox email rows no longer show priority emoji or category badge (redundant with tab context)
+- Empty state now displays category-aware message ("No important emails", "No newsletters emails", etc.)
+- `indexing:complete` listener refreshes emails using current account + category selection
+- One-time migration on `init_database` remaps legacy categories (`notifications`/`financial` -> `subscriptions`, `conversation`/`meetings` -> `general`)
 - Email ID format changed to `{account_id}:{folder}:{uid}` for multi-account disambiguation
 - `fetch_emails` now routes through active account's IMAP client with legacy Gmail API fallback
 - Database schema extended: `emails` table gains `account_id`, `uid`, `folder`, `message_id` columns
@@ -40,6 +66,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auth store updated for provider-aware authentication flow
 
 ### Fixed
+- **Critical XSS Vulnerability** — Added `DOMPurify` sanitization to the email viewer (`EmailViewer.tsx`) to prevent execution of malicious scripts embedded in HTML emails
+- **Auth Token Refresh Bug** — Implemented automatic token refresh and retry logic for Gmail API calls; previously, the app would stop working after 1 hour (token expiration) until restart. Added `with_gmail_client_retry` wrapper to handle 401 Unauthorized errors gracefully.
 - **Embed Emails / Build Index / Re-index never finding emails** — Tauri app identifier was `com.mohitsingh.tauri-app` causing `app.path().app_data_dir()` to resolve to a different directory than `ProjectDirs::from("com", "inboxed", "inboxed")` where emails are actually stored; changed identifier to `com.inboxed.inboxed` so both paths match
 - **VectorDatabase creating its own empty `emails` table** — `VectorDatabase::new()` called `create_tables()` which created all tables (including an empty `emails` table) in the vector DB file; `get_unembedded_email_ids()` then queried this empty table and always returned 0 results. Added `create_vector_tables()` that only creates `email_embeddings` and `embedding_status` tables, and rewrote `embed_all_emails` to fetch IDs from `EmailDatabase` and filter out already-embedded ones via `VectorDatabase::get_embedded_email_ids()`
 - **Errors silently swallowed on Re-index, Build Index, and Embed Emails** — all three buttons caught errors with `console.error` only; added visible dismissible error banners in Smart Inbox and Model Settings

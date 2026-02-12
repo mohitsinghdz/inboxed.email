@@ -49,8 +49,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 
 # Embeddings with Metal acceleration
 candle-core = { version = "0.8", features = ["metal"] }
-candle-nn = "0.8"
-candle-transformers = "0.8"
+candle-nn = { version = "0.8", features = ["metal"] }
+candle-transformers = { version = "0.8", features = ["metal"] }
 tokenizers = "0.21"
 safetensors = "0.5"
 

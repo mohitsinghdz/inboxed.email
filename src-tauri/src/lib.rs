@@ -55,6 +55,9 @@ pub fn run() {
             commands::star_email,
             commands::trash_email,
             commands::archive_email,
+            commands::start_idle_monitoring,
+            commands::stop_idle_monitoring,
+            commands::get_folder_stats,
             // AI commands
             commands::check_model_status,
             commands::is_model_loading,
@@ -81,6 +84,7 @@ pub fn run() {
             commands::reset_indexing_status,
             commands::start_email_indexing,
             commands::search_smart_emails,
+            commands::get_emails_by_account_and_category,
             commands::chat_query,
             // Cache commands
             commands::get_storage_info,

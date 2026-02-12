@@ -1,14 +1,8 @@
-import { useEffect } from 'react'
 import { useEmailStore } from '../../stores/emailStore'
 
 export default function EmailList() {
-  const { emails, selectedEmail, loading, error, fetchEmails, selectEmail } =
+  const { emails, selectedEmail, loading, refreshing, error, fetchEmails, selectEmail } =
     useEmailStore()
-
-  useEffect(() => {
-    fetchEmails(50)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const formatDate = (dateStr: string) => {
     try {
@@ -79,7 +73,12 @@ export default function EmailList() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto relative">
+      {refreshing && (
+        <div className="sticky top-0 z-10 w-full h-1 bg-background/50 backdrop-blur-sm">
+          <div className="h-full bg-foreground animate-pulse" style={{ width: '100%' }} />
+        </div>
+      )}
       {emails.map((email) => (
         <button
           key={email.id}

@@ -347,6 +347,23 @@ impl ImapClient {
         Ok(new_mail)
     }
 
+    /// Get folder statistics (total and unseen message counts)
+    pub async fn get_folder_stats(&self, folder: &str) -> Result<(u32, u32)> {
+        let mut guard = self.get_session().await?;
+        let session = guard.as_mut().context("No IMAP session")?;
+
+        // Use EXAMINE to check folder without marking messages as read
+        let mailbox = session
+            .examine(folder)
+            .await
+            .context(format!("Failed to examine folder: {}", folder))?;
+
+        let total = mailbox.exists;
+        let unseen = mailbox.unseen.unwrap_or(0);
+
+        Ok((total, unseen))
+    }
+
     /// Parse a FETCH response into an EmailListItem
     fn parse_fetch_to_list_item(&self, uid: u32, folder: &str, fetch: &Fetch) -> EmailListItem {
         let flags: Vec<Flag<'_>> = fetch.flags().collect();

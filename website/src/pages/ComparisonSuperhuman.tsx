@@ -9,6 +9,19 @@ export default function ComparisonSuperhuman() {
                 title="Superhuman Alternative (Free & Local) | Inboxed"
                 description="Switch from Superhuman to Inboxed. Free forever and keep your data private with local AI processing."
                 canonical="https://inboxed.email/compare/superhuman"
+                schema={{
+                    "@context": "https://schema.org",
+                    "@type": "WebPage",
+                    "name": "Inboxed vs Superhuman — Free Local AI Email Alternative",
+                    "description": "Feature-by-feature comparison of Inboxed and Superhuman. Inboxed offers local AI processing, full privacy, and free pricing vs Superhuman's $30/month cloud-based approach.",
+                    "url": "https://inboxed.email/compare/superhuman",
+                    "mainEntity": {
+                        "@type": "SoftwareApplication",
+                        "name": "Inboxed",
+                        "applicationCategory": "BusinessApplication",
+                        "operatingSystem": "macOS"
+                    }
+                }}
             />
             <div className="max-w-4xl mx-auto">
                 <h1 className="font-serif text-5xl md:text-7xl mb-8">Inboxed vs. Superhuman</h1>
@@ -17,73 +30,49 @@ export default function ComparisonSuperhuman() {
                     Inboxed runs locally on your Mac and is completely free.
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-                    {/* Feature Column */}
-                    <div className="hidden md:block col-span-1 pt-24 font-mono text-sm uppercase tracking-widest text-mutedForeground space-y-10">
-                        <div>AI Processing</div>
-                        <div>Privacy</div>
-                        <div>Cost</div>
-                        <div>Platform</div>
-                        <div>Data Access</div>
-                    </div>
-
-                    {/* Superhuman Card */}
-                    <div className="p-8 border-2 border-muted bg-muted/20 opacity-70">
-                        <h3 className="font-serif text-2xl mb-2">Superhuman</h3>
-                        <div className="h-1 w-10 bg-black/20 mb-10"></div>
-
-                        <div className="space-y-10 font-sans text-lg">
-                            <div className="flex items-center gap-2">
-                                <X size={20} className="text-black/50" />
-                                <span>Cloud API (OpenAI)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <X size={20} className="text-black/50" />
-                                <span>Data leaves device</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold">$30/month</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span>Web / Cloud Wrapper</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <X size={20} className="text-black/50" />
-                                <span>3rd Party Access</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Inboxed Card */}
-                    <div className="p-8 border-4 border-black bg-white relative">
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-black text-white px-4 py-1 text-xs uppercase tracking-widest">
-                            Winner
-                        </div>
-                        <h3 className="font-serif text-2xl mb-2">Inboxed</h3>
-                        <div className="h-1 w-10 bg-black mb-10"></div>
-
-                        <div className="space-y-10 font-sans text-lg font-medium">
-                            <div className="flex items-center gap-2">
-                                <Check size={20} className="text-black" />
-                                <span>Local LLM (Apple MLX)</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Shield size={20} className="text-black" />
-                                <span>100% Private</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Zap size={20} className="text-black" />
-                                <span>Free</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span>Native macOS App</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Check size={20} className="text-black" />
-                                <span>Zero Data Sharing</span>
-                            </div>
-                        </div>
-                    </div>
+                {/* Comparison Table */}
+                <div className="mb-20 overflow-x-auto">
+                    <table className="w-full border-collapse text-left font-sans text-lg">
+                        <thead>
+                            <tr className="border-b-4 border-black">
+                                <th className="py-4 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">Feature</th>
+                                <th className="py-4 px-8 font-serif text-2xl opacity-70">Superhuman</th>
+                                <th className="py-4 px-8 font-serif text-2xl font-bold">Inboxed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr className="border-b border-black/10">
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">AI Processing</td>
+                                <td className="py-5 px-8 opacity-70"><X size={18} className="inline mr-2 text-black/50" />Cloud API (OpenAI)</td>
+                                <td className="py-5 px-8 font-medium"><Check size={18} className="inline mr-2" />Local LLM (Apple MLX)</td>
+                            </tr>
+                            <tr className="border-b border-black/10">
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">Privacy</td>
+                                <td className="py-5 px-8 opacity-70"><X size={18} className="inline mr-2 text-black/50" />Data leaves device</td>
+                                <td className="py-5 px-8 font-medium"><Shield size={18} className="inline mr-2" />100% Private</td>
+                            </tr>
+                            <tr className="border-b border-black/10">
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">Cost</td>
+                                <td className="py-5 px-8 opacity-70 font-bold">$30/month ($360/year)</td>
+                                <td className="py-5 px-8 font-medium"><Zap size={18} className="inline mr-2" />Free (Pro: $1 lifetime)</td>
+                            </tr>
+                            <tr className="border-b border-black/10">
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">Platform</td>
+                                <td className="py-5 px-8 opacity-70">Web / Cloud Wrapper</td>
+                                <td className="py-5 px-8 font-medium">Native macOS App</td>
+                            </tr>
+                            <tr className="border-b border-black/10">
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">Data Access</td>
+                                <td className="py-5 px-8 opacity-70"><X size={18} className="inline mr-2 text-black/50" />3rd Party Access</td>
+                                <td className="py-5 px-8 font-medium"><Check size={18} className="inline mr-2" />Zero Data Sharing</td>
+                            </tr>
+                            <tr>
+                                <td className="py-5 pr-8 font-mono text-sm uppercase tracking-widest text-mutedForeground">App Size</td>
+                                <td className="py-5 px-8 opacity-70">~200MB (Electron)</td>
+                                <td className="py-5 px-8 font-medium">~10MB (Rust + Tauri)</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <div className="border-t border-black pt-16">

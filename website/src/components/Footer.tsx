@@ -59,6 +59,11 @@ export default function Footer() {
                                     Blog
                                 </Link>
                             </li>
+                            <li>
+                                <Link to="/best-private-ai-email" className="footer-link">
+                                    Best Private AI Email
+                                </Link>
+                            </li>
                         </ul>
                     </div>
 
@@ -86,6 +91,16 @@ export default function Footer() {
                             <li>
                                 <Link to="/compare/superhuman" className="footer-link">
                                     vs Superhuman
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/compare/apple-mail" className="footer-link">
+                                    vs Apple Mail
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/compare/thunderbird" className="footer-link">
+                                    vs Thunderbird
                                 </Link>
                             </li>
                             <li>

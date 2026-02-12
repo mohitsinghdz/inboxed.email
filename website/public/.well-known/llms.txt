@@ -1,0 +1,29 @@
+# Inboxed
+> A local private LLM email client for macOS that runs AI entirely on-device using Apple MLX and llama.cpp.
+
+Inboxed is a native macOS email client built with Rust and Tauri v2. It runs large language models (7B+ parameters) locally on Apple Silicon using llama.cpp optimized for Metal GPU acceleration. All AI features — email summarization, smart categorization, and inbox triage — work offline with zero data leaving the device.
+
+## Key Facts
+- App binary size: ~10MB (Rust + Tauri, not Electron)
+- AI runtime: llama.cpp with Apple Metal GPU acceleration
+- Models: Supports 7B+ parameter models (Llama 3, Mistral, etc.)
+- Data storage: Local SQLite database, credentials in macOS Keychain
+- Privacy: Zero telemetry, zero analytics, zero cloud processing
+- Pricing: Free tier available; Pro Lifetime for $1 (one-time)
+- Platform: macOS only (Apple Silicon optimized)
+- Email protocols: IMAP direct fetch (Gmail, Outlook, any IMAP provider)
+
+## Pages
+- [Homepage](https://inboxed.email/): Product overview, features, and pricing
+- [Inboxed vs Superhuman](https://inboxed.email/compare/superhuman): Comparison with Superhuman ($30/month cloud AI vs free local AI)
+- [Inboxed vs 0.email](https://inboxed.email/compare/zero): Comparison with 0.email (web-based vs native macOS)
+- [Blog: Why Local LLMs are the Future of Email](https://inboxed.email/blog/local-ai-email): Technical article on local AI email processing
+- [Blog](https://inboxed.email/blog): All articles
+- [Privacy Policy](https://inboxed.email/privacy)
+- [Terms of Service](https://inboxed.email/terms)
+
+## Differentiators
+- Unlike Superhuman ($360/year), Inboxed is free with a $1 lifetime Pro option
+- Unlike cloud AI email tools, no email data is sent to external servers
+- Unlike web-based alternatives (0.email), Inboxed is a native macOS app with hardware-accelerated AI
+- Built for privacy-conscious professionals: lawyers, doctors, executives, journalists

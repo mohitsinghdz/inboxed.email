@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
+import { useEmailStore } from './emailStore'
 
 export interface Account {
   id: string
@@ -98,6 +99,11 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       await invoke('set_active_account', { accountId })
       set({ activeAccountId: accountId })
       await get().fetchAccounts()
+
+      // Restart email sync for the new account
+      const emailStore = useEmailStore.getState()
+      emailStore.stopSync()
+      await emailStore.startSync()
     } catch (error) {
       set({ error: (error as Error).toString() })
     }

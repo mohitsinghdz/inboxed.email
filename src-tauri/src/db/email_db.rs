@@ -633,9 +633,166 @@ impl EmailDatabase {
         Ok(account)
     }
 
-    // Get all cached emails as EmailListItem
+    // Get important emails by account (HIGH priority or starred)
+    pub fn get_important_emails_by_account(
+        &self,
+        account_id: &str,
+        limit: i64,
+    ) -> AnyhowResult<Vec<EmailWithInsight>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT e.id, e.thread_id, e.subject, e.from_name, e.from_email, e.to_emails,
+                    e.date, e.snippet, e.is_read, e.is_starred, e.has_attachments,
+                    COALESCE(i.priority, 'MEDIUM') as priority,
+                    COALESCE(i.priority_score, 0.5) as priority_score,
+                    i.category, i.summary
+             FROM emails e
+             LEFT JOIN email_insights i ON e.id = i.email_id
+             WHERE e.account_id = ?1 AND (i.priority = 'HIGH' OR e.is_starred = 1)
+             ORDER BY COALESCE(i.priority_score, 0.5) DESC, e.date DESC
+             LIMIT ?2",
+        )?;
+
+        let emails = stmt
+            .query_map(params![account_id, limit], |row| {
+                Ok(EmailWithInsight {
+                    id: row.get(0)?,
+                    thread_id: row.get(1)?,
+                    subject: row.get(2)?,
+                    from_name: row.get(3)?,
+                    from_email: row.get(4)?,
+                    to_emails: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or_default(),
+                    date: row.get(6)?,
+                    snippet: row.get(7)?,
+                    is_read: row.get::<_, i32>(8)? != 0,
+                    is_starred: row.get::<_, i32>(9)? != 0,
+                    has_attachments: row.get::<_, i32>(10)? != 0,
+                    priority: row.get(11)?,
+                    priority_score: row.get(12)?,
+                    category: row.get(13)?,
+                    summary: row.get(14)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(emails)
+    }
+
+    // Get emails by account and category, excluding important emails
+    pub fn get_emails_by_account_and_category(
+        &self,
+        account_id: &str,
+        category: &str,
+        limit: i64,
+    ) -> AnyhowResult<Vec<EmailWithInsight>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT e.id, e.thread_id, e.subject, e.from_name, e.from_email, e.to_emails,
+                    e.date, e.snippet, e.is_read, e.is_starred, e.has_attachments,
+                    i.priority, i.priority_score, i.category, i.summary
+             FROM emails e
+             INNER JOIN email_insights i ON e.id = i.email_id
+             WHERE e.account_id = ?1 AND i.category = ?2
+                   AND i.priority != 'HIGH' AND e.is_starred = 0
+             ORDER BY i.priority_score DESC, e.date DESC
+             LIMIT ?3",
+        )?;
+
+        let emails = stmt
+            .query_map(params![account_id, category, limit], |row| {
+                Ok(EmailWithInsight {
+                    id: row.get(0)?,
+                    thread_id: row.get(1)?,
+                    subject: row.get(2)?,
+                    from_name: row.get(3)?,
+                    from_email: row.get(4)?,
+                    to_emails: serde_json::from_str(&row.get::<_, String>(5)?).unwrap_or_default(),
+                    date: row.get(6)?,
+                    snippet: row.get(7)?,
+                    is_read: row.get::<_, i32>(8)? != 0,
+                    is_starred: row.get::<_, i32>(9)? != 0,
+                    has_attachments: row.get::<_, i32>(10)? != 0,
+                    priority: row.get(11)?,
+                    priority_score: row.get(12)?,
+                    category: row.get(13)?,
+                    summary: row.get(14)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(emails)
+    }
+
+    /// Get emails that haven't been indexed yet (no entry in email_insights)
+    pub fn get_unindexed_emails(&self, limit: i64) -> AnyhowResult<Vec<crate::email::types::Email>> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT e.id, e.thread_id, e.subject, e.from_name, e.from_email, e.to_emails,
+                    e.date, e.snippet, e.body_html, e.body_plain, e.is_read, e.is_starred,
+                    e.has_attachments, e.labels, e.account_id, e.uid, e.folder, e.message_id
+             FROM emails e
+             LEFT JOIN email_insights i ON e.id = i.email_id
+             WHERE i.email_id IS NULL
+             ORDER BY e.date DESC
+             LIMIT ?1",
+        )?;
+
+        let emails = stmt
+            .query_map(params![limit], |row| {
+                let to_emails_json: String = row.get(5)?;
+                let labels_json: String = row.get(13)?;
+                let date_timestamp: i64 = row.get(6)?;
+
+                Ok(crate::email::types::Email {
+                    id: row.get(0)?,
+                    thread_id: row.get(1)?,
+                    subject: row.get(2)?,
+                    from: row.get(3)?,
+                    from_email: row.get(4)?,
+                    to: serde_json::from_str(&to_emails_json).unwrap_or_default(),
+                    date: chrono::DateTime::from_timestamp(date_timestamp, 0)
+                        .map(|dt| dt.format("%a, %d %b %Y %H:%M:%S %z").to_string())
+                        .unwrap_or_default(),
+                    date_timestamp,
+                    snippet: row.get(7)?,
+                    body_html: row.get(8)?,
+                    body_plain: row.get(9)?,
+                    is_read: row.get::<_, i32>(10)? != 0,
+                    is_starred: row.get::<_, i32>(11)? != 0,
+                    has_attachments: row.get::<_, i32>(12)? != 0,
+                    labels: serde_json::from_str(&labels_json).unwrap_or_default(),
+                    account_id: row.get::<_, String>(14).unwrap_or_else(|_| "legacy".to_string()),
+                    uid: row.get::<_, i64>(15).unwrap_or(0) as u32,
+                    folder: row.get::<_, String>(16).unwrap_or_else(|_| "INBOX".to_string()),
+                    message_id: row.get::<_, String>(17).unwrap_or_default(),
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(emails)
+    }
+
+    // Run category migration to remap old categories to new buckets
+    pub fn migrate_categories(&self) -> AnyhowResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE email_insights SET category = 'subscriptions' WHERE category IN ('notifications', 'financial')",
+            [],
+        )?;
+        conn.execute(
+            "UPDATE email_insights SET category = 'general' WHERE category IN ('conversation', 'meetings')",
+            [],
+        )?;
+        Ok(())
+    }
+
+    // Get all cached emails as EmailListItem for a specific folder
     pub fn get_cached_emails(
         &self,
+        folder: &str,
         limit: i64,
     ) -> AnyhowResult<Vec<crate::email::types::EmailListItem>> {
         let conn = self.conn.lock().unwrap();
@@ -643,11 +800,13 @@ impl EmailDatabase {
         let mut stmt = conn.prepare(
             "SELECT id, thread_id, subject, from_name, from_email, date, snippet,
                     is_read, is_starred, has_attachments
-             FROM emails ORDER BY date DESC LIMIT ?1",
+             FROM emails 
+             WHERE folder = ?1
+             ORDER BY date DESC LIMIT ?2",
         )?;
 
         let emails = stmt
-            .query_map([limit], |row| {
+            .query_map(params![folder, limit], |row| {
                 let date_timestamp: i64 = row.get(5)?;
 
                 Ok(crate::email::types::EmailListItem {

@@ -3,7 +3,7 @@
 //! Generates text embeddings using sentence transformer models for semantic search.
 
 use anyhow::{anyhow, Context, Result};
-use candle_core::{Device, Tensor};
+use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config, DTYPE};
 use hf_hub::{Repo, RepoType};
@@ -179,8 +179,10 @@ impl EmbeddingEngine {
 
         if let Some(ref device) = metal_device {
             eprintln!("[RAG] Attempting Metal GPU for embedding model '{}'", model_id);
+            // Use F32 for Metal — upstream BERT hardcodes F32 attention masks (candle-transformers bert.rs:508)
+            // which causes dtype mismatch with F16 weights. Metal kernels support F32 natively.
             let vb = unsafe {
-                VarBuilder::from_mmaped_safetensors(&[weights_path.to_path_buf()], DTYPE, device)?
+                VarBuilder::from_mmaped_safetensors(&[weights_path.to_path_buf()], DType::F32, device)?
             };
             let model = BertModel::load(vb, &config)?;
 
@@ -188,7 +190,7 @@ impl EmbeddingEngine {
             let test_input = Tensor::zeros((1, 1), candle_core::DType::U32, device)?;
             match model.forward(&test_input, &test_input, None) {
                 Ok(_) => {
-                    eprintln!("[RAG] Metal GPU works, using Metal for embeddings");
+                    eprintln!("[RAG] Metal GPU works, using Metal for embeddings (F32)");
                     return Ok(Self {
                         model,
                         tokenizer,
@@ -311,7 +313,7 @@ impl EmbeddingEngine {
         // Mean pooling over sequence length (with attention mask)
         let attention_mask_expanded = attention_mask
             .unsqueeze(2)?
-            .to_dtype(candle_core::DType::F32)?
+            .to_dtype(embeddings.dtype())?
             .broadcast_as(embeddings.shape())?;
 
         let masked_embeddings = embeddings.mul(&attention_mask_expanded)?;
@@ -328,6 +330,7 @@ impl EmbeddingEngine {
         )?
         .sum(1)?
         .unsqueeze(1)?
+        .to_dtype(embeddings.dtype())?
         .broadcast_as(sum_embeddings.shape())?;
 
         let mean_embeddings = sum_embeddings.div(&attention_sum)?;
@@ -342,7 +345,7 @@ impl EmbeddingEngine {
         let normalized = mean_embeddings.div(&norms)?;
 
         // Convert to Vec<Vec<f32>>
-        let normalized_cpu = normalized.to_device(&Device::Cpu)?;
+        let normalized_cpu = normalized.to_device(&Device::Cpu)?.to_dtype(DType::F32)?;
         let flat: Vec<f32> = normalized_cpu
             .to_vec2::<f32>()?
             .into_iter()

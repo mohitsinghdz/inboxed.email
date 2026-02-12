@@ -7,6 +7,7 @@ interface SEOProps {
     type?: 'website' | 'article';
     name?: string;
     schema?: Record<string, any>;
+    schemas?: Record<string, any>[];
 }
 
 export default function SEO({
@@ -15,11 +16,10 @@ export default function SEO({
     canonical = 'https://inboxed.email',
     type = 'website',
     name = 'Inboxed',
-    schema
+    schema,
+    schemas,
 }: SEOProps) {
-
-    // Auto-append brand name if not present (optional logic)
-    // For now we assume standard format is passed in or we construct it.
+    const allSchemas = schemas ?? (schema ? [schema] : []);
 
     return (
         <Helmet>
@@ -41,11 +41,11 @@ export default function SEO({
             <meta name="twitter:description" content={description} />
 
             {/* Structured Data */}
-            {schema && (
-                <script type="application/ld+json">
-                    {JSON.stringify(schema)}
+            {allSchemas.map((s, i) => (
+                <script key={i} type="application/ld+json">
+                    {JSON.stringify(s)}
                 </script>
-            )}
+            ))}
         </Helmet>
     );
 }

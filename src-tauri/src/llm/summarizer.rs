@@ -234,13 +234,22 @@ impl Summarizer {
     }
 
     /// Classify email priority using LLM
-    pub fn classify_priority(&self, subject: &str, body: &str) -> Result<String> {
+    pub fn classify_priority(&self, subject: &str, from: &str, body: &str) -> Result<String> {
         let body_text = Self::strip_html(body);
         let body_preview = Self::truncate_text(&body_text, 1000);
 
         if let Some(engine) = &self.engine {
-            let system = "You are an email priority classifier. Respond with exactly one word: HIGH, MEDIUM, or LOW.\nHIGH = urgent, time-sensitive, requires immediate action\nMEDIUM = important but not urgent, needs attention soon\nLOW = informational, no action required";
-            let user = format!("Classify this email's priority:\n\nSubject: {subject}\n\n{body_preview}");
+            let system = "You are an email priority classifier. Respond with exactly one word: HIGH, MEDIUM, or LOW.\n\n\
+                HIGH: Direct personal email requiring action or reply. Urgent, time-sensitive, from a real person.\n\
+                MEDIUM: Relevant but not urgent. Meeting invites, project updates, questions, team discussions.\n\
+                LOW: Automated, mass-sent, no action needed. Newsletters, promotions, notifications, service emails from noreply addresses.\n\n\
+                Examples:\n\
+                - Subject: \"Can you review this PR by tomorrow?\" From: john@company.com → HIGH\n\
+                - Subject: \"Your weekly digest\" From: noreply@service.com → LOW\n\
+                - Subject: \"Q3 planning meeting notes\" From: sarah@company.com → MEDIUM\n\
+                - Subject: \"Action required: approve expense report\" From: manager@company.com → HIGH\n\
+                - Subject: \"50% off summer sale!\" From: deals@store.com → LOW";
+            let user = format!("Classify this email's priority:\n\nFrom: {from}\nSubject: {subject}\n\n{body_preview}");
 
             let prompt = self.format_prompt(system, &user);
 
@@ -269,8 +278,8 @@ impl Summarizer {
                 }
             }
         } else {
-            // Fallback to simple classification
-            Self::simple_priority(subject, &body_text)
+            // No model loaded — return default
+            Ok("MEDIUM".to_string())
         }
     }
 
@@ -386,29 +395,6 @@ impl Summarizer {
         }
 
         Ok(insights)
-    }
-
-    /// Simple fallback priority classification
-    fn simple_priority(subject: &str, body_text: &str) -> Result<String> {
-        let combined = format!("{} {}", subject, body_text).to_lowercase();
-
-        if combined.contains("urgent")
-            || combined.contains("asap")
-            || combined.contains("critical")
-            || combined.contains("emergency")
-        {
-            return Ok("HIGH".to_string());
-        }
-
-        if combined.contains("important")
-            || combined.contains("deadline")
-            || combined.contains("meeting")
-            || combined.contains("action required")
-        {
-            return Ok("MEDIUM".to_string());
-        }
-
-        Ok("LOW".to_string())
     }
 
     /// Generate a conversational chat response

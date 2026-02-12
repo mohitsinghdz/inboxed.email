@@ -9,18 +9,47 @@ export default function Home() {
             <SEO
                 title="Local Private LLM Email Client | Inboxed"
                 description="Inboxed is a local private LLM email client that works offline, respects privacy, and replaces cloud AI email tools."
-                schema={{
-                    "@context": "https://schema.org",
-                    "@type": "SoftwareApplication",
-                    "name": "Inboxed",
-                    "applicationCategory": "Productivity",
-                    "operatingSystem": "macOS",
-                    "offers": {
-                        "@type": "Offer",
-                        "price": "1.00",
-                        "priceCurrency": "USD"
+                schemas={[
+                    {
+                        "@context": "https://schema.org",
+                        "@type": "SoftwareApplication",
+                        "name": "Inboxed",
+                        "description": "A local private LLM email client for macOS that runs AI entirely on-device using Apple MLX and llama.cpp. Supports 7B+ parameter models for email summarization, smart categorization, and inbox triage — all offline.",
+                        "applicationCategory": "BusinessApplication",
+                        "operatingSystem": "macOS",
+                        "softwareVersion": "1.0",
+                        "fileSize": "10MB",
+                        "downloadUrl": "https://inboxed.email",
+                        "featureList": "Local LLM email summarization, Smart inbox categorization, Zero-data-exit privacy, Apple Metal GPU acceleration, IMAP direct fetch, Offline AI processing, macOS Keychain credential storage",
+                        "offers": [
+                            {
+                                "@type": "Offer",
+                                "name": "Standard",
+                                "price": "0",
+                                "priceCurrency": "USD",
+                                "description": "Free forever with all AI models, unlimited accounts, and community support"
+                            },
+                            {
+                                "@type": "Offer",
+                                "name": "Pro Lifetime",
+                                "price": "1.00",
+                                "priceCurrency": "USD",
+                                "description": "One-time payment for priority support, early access features"
+                            }
+                        ]
+                    },
+                    {
+                        "@context": "https://schema.org",
+                        "@type": "Organization",
+                        "name": "Inboxed",
+                        "url": "https://inboxed.email",
+                        "description": "Maker of Inboxed, the local private LLM email client for macOS.",
+                        "brand": {
+                            "@type": "Brand",
+                            "name": "Inboxed"
+                        }
                     }
-                }}
+                ]}
             />
             <Hero />
             <Features />

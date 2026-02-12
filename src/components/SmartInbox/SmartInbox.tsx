@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useSmartInboxStore } from '../../stores/smartInboxStore'
+import { useSmartInboxStore, CATEGORY_BUCKETS } from '../../stores/smartInboxStore'
 import { useEmailStore } from '../../stores/emailStore'
+import { useAccountStore } from '../../stores/accountStore'
 import { useRagStore } from '../../stores/ragStore'
 import { ChatPanel } from './ChatPanel'
-
-const PRIORITY_LABELS = {
-  HIGH: '🔴',
-  MEDIUM: '🟡',
-  LOW: '⚪',
-}
 
 interface SmartInboxProps {
   onCompose?: () => void
@@ -21,13 +16,19 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
     error,
     indexingStatus,
     indexingProgress,
+    selectedAccountId,
+    selectedCategory,
     fetchSmartInbox,
     getIndexingStatus,
     resetIndexingStatus,
     startIndexing,
     initDatabase,
     setupIndexingListeners,
+    setSelectedAccount,
+    setSelectedCategory,
   } = useSmartInboxStore()
+
+  const { accounts, fetchAccounts } = useAccountStore()
 
   const {
     isInitialized: ragReady,
@@ -50,7 +51,6 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
   const [isBuildingIndex, setIsBuildingIndex] = useState(false)
 
   useEffect(() => {
-    // Initialize database and fetch status
     const init = async () => {
       await initDatabase()
       await getIndexingStatus()
@@ -61,8 +61,14 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
         await resetIndexingStatus()
       }
 
-      // Check if we have any indexed emails
-      if (emails.length === 0) {
+      // Fetch accounts and set initial selection
+      await fetchAccounts()
+      const accountStore = useAccountStore.getState()
+      const initialAccountId = accountStore.activeAccountId || accountStore.accounts[0]?.id
+      if (initialAccountId) {
+        // This will trigger fetchEmailsByAccountAndCategory via setSelectedAccount
+        setSelectedAccount(initialAccountId)
+      } else if (useSmartInboxStore.getState().emails.length === 0) {
         await fetchSmartInbox()
       }
 
@@ -77,14 +83,12 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
         }
       }
 
-      // Fetch embedding status to know if all emails are indexed
       if (ragStore.isInitialized || downloaded) {
         await ragStore.getEmbeddingStatus()
       }
     }
     init()
 
-    // Setup indexing listeners
     const cleanup = setupIndexingListeners()
     return () => {
       cleanup.then((fn) => fn())
@@ -180,6 +184,8 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
     )
   }
 
+  const showAccountTabs = accounts.length > 1
+
   return (
     <div className="flex-1 flex flex-col bg-background h-full overflow-hidden">
       {/* Action Bar */}
@@ -188,7 +194,7 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
           <p className="text-sm text-mutedForeground">
             {indexingStatus?.is_indexing
               ? `Indexing emails... ${indexingProgress}%`
-              : `${emails.length} emails sorted by importance`}
+              : `${emails.length} emails`}
           </p>
           {ragReady && !indexingStatus?.is_indexing && !isEmbedding && embeddingStatus && (embeddingStatus.total_emails > 0 || embeddingStatus.embedded_emails > 0) && (
             <span
@@ -241,6 +247,42 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Account Tabs */}
+      {showAccountTabs && (
+        <div className="px-6 py-2 border-b-[2px] border-foreground flex items-center gap-2 flex-shrink-0 overflow-x-auto">
+          {accounts.map((account) => (
+            <button
+              key={account.id}
+              onClick={() => setSelectedAccount(account.id)}
+              className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider border-[2px] border-foreground transition-colors whitespace-nowrap ${
+                selectedAccountId === account.id
+                  ? 'bg-foreground text-background'
+                  : 'hover:bg-foreground hover:text-background'
+              }`}
+            >
+              {account.display_name || account.email}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Category Tabs */}
+      <div className="px-6 py-2 border-b-[2px] border-foreground flex items-center gap-2 flex-shrink-0">
+        {CATEGORY_BUCKETS.map((bucket) => (
+          <button
+            key={bucket.id}
+            onClick={() => setSelectedCategory(bucket.id)}
+            className={`px-3 py-1.5 text-xs font-mono uppercase tracking-wider border-[2px] border-foreground transition-colors ${
+              selectedCategory === bucket.id
+                ? 'bg-foreground text-background'
+                : 'hover:bg-foreground hover:text-background'
+            }`}
+          >
+            {bucket.label}
+          </button>
+        ))}
       </div>
 
       {/* Indexing Progress */}
@@ -327,7 +369,9 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
             </div>
           ) : emails.length === 0 ? (
             <div className="flex items-center justify-center h-full">
-              <p className="text-mutedForeground font-mono text-sm">No emails found</p>
+              <p className="text-mutedForeground font-mono text-sm">
+                No {selectedCategory} emails
+              </p>
             </div>
           ) : (
             <div className="divide-y-[2px] divide-foreground">
@@ -341,15 +385,7 @@ export function SmartInbox({ onCompose }: SmartInboxProps) {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg" title={email.priority}>
-                          {PRIORITY_LABELS[email.priority as keyof typeof PRIORITY_LABELS]}
-                        </span>
                         <span className="font-semibold truncate">{email.from_name}</span>
-                        {email.category && (
-                          <span className="px-2 py-0.5 text-xs bg-gray-200 font-mono uppercase">
-                            {email.category}
-                          </span>
-                        )}
                       </div>
                       <h3
                         className={`font-medium mb-1 truncate ${!email.is_read ? 'font-bold' : ''

@@ -417,7 +417,7 @@ pub async fn summarize_email(
         .map_err(|e| e.to_string())?;
 
     let priority = summarizer
-        .classify_priority(&subject, &body)
+        .classify_priority(&subject, &from, &body)
         .map_err(|e| e.to_string())?;
 
     Ok(EmailSummary {
@@ -470,7 +470,7 @@ pub async fn summarize_email_stream(
             .map_err(|e| e.to_string())?;
 
         let priority = summarizer
-            .classify_priority(&subject, &body)
+            .classify_priority(&subject, &from, &body)
             .map_err(|e| e.to_string())?;
 
         (insights, priority)
@@ -496,12 +496,12 @@ pub async fn get_email_insights(subject: String, body: String) -> Result<Vec<Str
 
 /// Classify email priority
 #[tauri::command]
-pub async fn classify_priority(subject: String, body: String) -> Result<String, String> {
+pub async fn classify_priority(subject: String, from: String, body: String) -> Result<String, String> {
     let guard = SUMMARIZER.lock().unwrap();
     let summarizer = guard.as_ref().ok_or("AI not initialized")?;
 
     summarizer
-        .classify_priority(&subject, &body)
+        .classify_priority(&subject, &from, &body)
         .map_err(|e| e.to_string())
 }
 

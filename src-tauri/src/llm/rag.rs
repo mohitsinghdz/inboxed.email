@@ -19,10 +19,19 @@ pub struct RetrievedContext {
     pub similarity: f32,
 }
 
+/// Category descriptions for zero-shot classification via embeddings
+const CATEGORY_DESCRIPTIONS: &[(&str, &str)] = &[
+    ("promotions", "Marketing email with sales promotions, discount offers, coupon codes, limited time deals, shopping advertisements, commercial offers"),
+    ("newsletters", "Newsletter digest with editorial content, weekly updates, curated news roundup, blog posts, industry insights, recurring content publication"),
+    ("subscriptions", "Automated service notification, account alert, billing receipt, shipping update, password reset, order confirmation, system notification, GitHub notification, CI/CD alert"),
+    ("general", "Personal or work email conversation, direct message, meeting discussion, project collaboration, question from a colleague, professional correspondence"),
+];
+
 /// RAG Engine combining retrieval and generation
 pub struct RagEngine {
     embedding_engine: Option<Arc<EmbeddingEngine>>,
     vector_db: Option<Arc<VectorDatabase>>,
+    category_embeddings: Option<Vec<(String, Vec<f32>)>>,
 }
 
 impl RagEngine {
@@ -31,6 +40,7 @@ impl RagEngine {
         Self {
             embedding_engine: None,
             vector_db: None,
+            category_embeddings: None,
         }
     }
 
@@ -152,6 +162,54 @@ impl RagEngine {
         summarizer.chat(&prompt, Some(&context_str))
     }
 
+    /// Compute and cache reference embeddings for category classification
+    pub fn init_category_embeddings(&mut self) -> Result<()> {
+        let engine = self
+            .embedding_engine
+            .as_ref()
+            .ok_or_else(|| anyhow!("Embedding engine not initialized"))?;
+
+        let mut embeddings = Vec::new();
+        for (category, description) in CATEGORY_DESCRIPTIONS {
+            let embedding = engine.embed(description)?;
+            embeddings.push((category.to_string(), embedding));
+        }
+
+        self.category_embeddings = Some(embeddings);
+        Ok(())
+    }
+
+    /// Zero-shot classify an email into a category using embedding similarity
+    pub fn classify_category(&self, subject: &str, from: &str, body: &str) -> Result<String> {
+        let category_embeddings = self
+            .category_embeddings
+            .as_ref()
+            .ok_or_else(|| anyhow!("Category embeddings not initialized"))?;
+
+        let engine = self
+            .embedding_engine
+            .as_ref()
+            .ok_or_else(|| anyhow!("Embedding engine not initialized"))?;
+
+        // Build email text representation and embed it
+        let email_text = prepare_email_text(subject, from, body);
+        let email_embedding = engine.embed(&email_text)?;
+
+        // Find the category with highest cosine similarity
+        let mut best_category = "general";
+        let mut best_similarity = f32::NEG_INFINITY;
+
+        for (category, ref_embedding) in category_embeddings {
+            let similarity = cosine_similarity_vec(&email_embedding, ref_embedding);
+            if similarity > best_similarity {
+                best_similarity = similarity;
+                best_category = category;
+            }
+        }
+
+        Ok(best_category.to_string())
+    }
+
     /// Get the embedding engine
     pub fn embedding_engine(&self) -> Option<Arc<EmbeddingEngine>> {
         self.embedding_engine.clone()
@@ -230,6 +288,30 @@ fn truncate_text(text: &str, max_chars: usize) -> String {
         text.to_string()
     } else {
         text.chars().take(max_chars).collect::<String>() + "..."
+    }
+}
+
+/// Compute cosine similarity between two vectors
+fn cosine_similarity_vec(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let mut dot_product = 0.0f32;
+    let mut norm_a = 0.0f32;
+    let mut norm_b = 0.0f32;
+
+    for i in 0..a.len() {
+        dot_product += a[i] * b[i];
+        norm_a += a[i] * a[i];
+        norm_b += b[i] * b[i];
+    }
+
+    let denominator = norm_a.sqrt() * norm_b.sqrt();
+    if denominator == 0.0 {
+        0.0
+    } else {
+        dot_product / denominator
     }
 }
 

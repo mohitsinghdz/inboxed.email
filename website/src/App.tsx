@@ -7,6 +7,9 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import ComparisonSuperhuman from './pages/ComparisonSuperhuman';
 import ComparisonZero from './pages/ComparisonZero';
+import ComparisonThunderbird from './pages/ComparisonThunderbird';
+import ComparisonAppleMail from './pages/ComparisonAppleMail';
+import BestPrivateAI from './pages/BestPrivateAI';
 import BlogIndex from './pages/BlogIndex';
 import PostLocalAI from './pages/blog/PostLocalAI';
 
@@ -33,6 +36,9 @@ function App() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/compare/superhuman" element={<ComparisonSuperhuman />} />
           <Route path="/compare/zero" element={<ComparisonZero />} />
+          <Route path="/compare/thunderbird" element={<ComparisonThunderbird />} />
+          <Route path="/compare/apple-mail" element={<ComparisonAppleMail />} />
+          <Route path="/best-private-ai-email" element={<BestPrivateAI />} />
           <Route path="/blog" element={<BlogIndex />} />
           <Route path="/blog/local-ai-email" element={<PostLocalAI />} />
         </Routes>

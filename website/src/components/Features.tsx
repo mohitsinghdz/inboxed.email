@@ -5,22 +5,22 @@ const features = [
     {
         icon: <Cpu strokeWidth={1} size={32} />,
         title: "Local Private LLM",
-        description: "Powered by Apple MLX. Runs 7B+ parameter models (Llama 3, Mistral) entirely on your Apple Silicon GPU via llama.cpp with Metal acceleration. No API costs, no latency, no data leaks."
+        description: "The first private AI email client for Mac. Runs 7B+ parameter models (Llama 3, Mistral) entirely on your Apple Silicon GPU via llama.cpp. No cloud API, no latency, no data leaks."
     },
     {
         icon: <EyeOff strokeWidth={1} size={32} />,
         title: "No Tracking",
-        description: "Zero telemetry. Zero analytics. Zero cloud processing. Your email is your business. We rely on your device's power, not our servers."
+        description: "Zero telemetry. Zero analytics. A truly private email client. Your data is your business. We rely on your device's power, not our servers."
     },
     {
         icon: <Zap strokeWidth={1} size={32} />,
         title: "Zero Inbox",
-        description: "AI automatically categorizes newsletters, receipts, and updates. Focus only on what matters. Clear your inbox in seconds — even offline on a plane."
+        description: "AI-powered email client for the modern era. Automatically summarize emails and categorize receipts. Clear your inbox in seconds — even as an offline email client on a plane."
     },
     {
         icon: <Lock strokeWidth={1} size={32} />,
         title: "Direct Fetch",
-        description: "Emails are fetched directly from Google/IMAP to your device. Credentials stored in macOS Keychain. Data stored in local SQLite. No middleman servers."
+        description: "On-device intelligence with direct IMAP/Google fetch. Credentials stored in macOS Keychain. Data stored in local SQLite. The ultimate secure email client."
     }
 ];
 

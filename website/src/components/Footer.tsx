@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import logo from '../assets/logo.png';
+import { comparisons, useCases, alternatives } from '../data/seo-pages';
 
 function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -26,10 +27,10 @@ export default function Footer() {
 
             {/* Links Grid */}
             <div className="container-custom pt-16 pb-20">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-12 mb-20">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-12 mb-20">
                     {/* Brand Column - 2 cols */}
-                    <div className="col-span-1 md:col-span-2">
-                        <img src={logo} alt="Inboxed Logo" className="h-10 w-auto mb-6 invert" />
+                    <div className="col-span-2">
+                        <img src={logo} alt="Inboxed Logo" className="h-14 w-auto mb-6 invert" />
                         <p className="font-body text-lg text-white/70 max-w-md transition-colors duration-150 hover:text-white">
                             Reclaiming the inbox for the modern era. Private, local, and intelligent email for macOS.
                         </p>
@@ -39,48 +40,11 @@ export default function Footer() {
                     <div>
                         <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Product</h4>
                         <ul className="space-y-4 font-body">
-                            <li>
-                                <a href="#" className="footer-link">
-                                    Download
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className="footer-link">
-                                    Changelog
-                                </a>
-                            </li>
-                            <li>
-                                <a href="#" className="footer-link">
-                                    Roadmap
-                                </a>
-                            </li>
-                            <li>
-                                <Link to="/blog" className="footer-link">
-                                    Blog
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/best-private-ai-email" className="footer-link">
-                                    Best Private AI Email
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
-
-                    {/* Legal Column */}
-                    <div>
-                        <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Legal</h4>
-                        <ul className="space-y-4 font-body">
-                            <li>
-                                <Link to="/privacy" className="footer-link">
-                                    Privacy Policy
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/terms" className="footer-link">
-                                    Terms of Service
-                                </Link>
-                            </li>
+                            <li><a href="#" className="footer-link">Download</a></li>
+                            <li><a href="#" className="footer-link">Changelog</a></li>
+                            <li><a href="#" className="footer-link">Roadmap</a></li>
+                            <li><Link to="/blog" className="footer-link">Blog</Link></li>
+                            <li><Link to="/best-private-ai-email" className="footer-link">Best Private AI Email</Link></li>
                         </ul>
                     </div>
 
@@ -88,26 +52,46 @@ export default function Footer() {
                     <div>
                         <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Compare</h4>
                         <ul className="space-y-4 font-body">
-                            <li>
-                                <Link to="/compare/superhuman" className="footer-link">
-                                    vs Superhuman
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/compare/apple-mail" className="footer-link">
-                                    vs Apple Mail
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/compare/thunderbird" className="footer-link">
-                                    vs Thunderbird
-                                </Link>
-                            </li>
-                            <li>
-                                <Link to="/compare/zero" className="footer-link">
-                                    vs 0.email
-                                </Link>
-                            </li>
+                            {comparisons.map((c) => (
+                                <li key={c.slug}>
+                                    <Link to={`/compare/${c.slug}`} className="footer-link">
+                                        vs {c.name}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Use Cases Column */}
+                    <div>
+                        <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Best For</h4>
+                        <ul className="space-y-4 font-body">
+                            {useCases.map((u) => (
+                                <li key={u.slug}>
+                                    <Link to={`/best-email-for/${u.slug}`} className="footer-link">
+                                        {u.profession}
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* Alternatives + Legal Column */}
+                    <div>
+                        <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Alternatives</h4>
+                        <ul className="space-y-4 font-body mb-10">
+                            {alternatives.map((a) => (
+                                <li key={a.slug}>
+                                    <Link to={`/alternatives/${a.slug}`} className="footer-link">
+                                        {a.competitor} Alts
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                        <h4 className="font-mono text-xs uppercase tracking-widest mb-6 text-white/50">Legal</h4>
+                        <ul className="space-y-4 font-body">
+                            <li><Link to="/privacy" className="footer-link">Privacy Policy</Link></li>
+                            <li><Link to="/terms" className="footer-link">Terms of Service</Link></li>
                         </ul>
                     </div>
                 </div>

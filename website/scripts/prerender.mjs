@@ -6,8 +6,8 @@
  * 3. This script loads the SSR bundle and renders each route to static HTML
  * 4. The static HTML files replace the shell index.html for each route
  *
- * This ensures AI crawlers (GPTBot, ClaudeBot, PerplexityBot) see real content
- * instead of an empty <div id="root"></div>.
+ * Routes are derived from the central data file (src/data/seo-pages.ts),
+ * re-exported through entry-server.tsx into the SSR bundle.
  */
 
 import fs from 'node:fs'
@@ -18,22 +18,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(__dirname, '../dist')
 const ssrDir = path.resolve(__dirname, '../dist-ssr')
 
-const routes = [
-    '/',
-    '/compare/superhuman',
-    '/compare/zero',
-    '/compare/thunderbird',
-    '/compare/apple-mail',
-    '/best-private-ai-email',
-    '/blog',
-    '/blog/local-ai-email',
-    '/privacy',
-    '/terms',
-]
-
 async function prerender() {
-    // Load the SSR bundle
-    const { render } = await import(path.join(ssrDir, 'entry-server.js'))
+    // Load the SSR bundle — includes render function and route helpers
+    const { render, getAllRoutes } = await import(path.join(ssrDir, 'entry-server.js'))
+
+    const routes = getAllRoutes()
+    console.log(`  Prerendering ${routes.length} routes...\n`)
 
     // Read the template HTML (client build output)
     const template = fs.readFileSync(path.join(distDir, 'index.html'), 'utf-8')

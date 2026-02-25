@@ -20,7 +20,7 @@ export default function Navbar() {
                 {/* Logo */}
                 <div className="flex items-center gap-2">
                     <Link to="/" className="flex items-center gap-2" onClick={closeMobileMenu}>
-                        <img src={logo} alt="Inboxed Logo" className="h-8 w-auto" />
+                        <img src={logo} alt="Inboxed Logo" className="h-[52px] w-auto" />
                     </Link>
                 </div>
 

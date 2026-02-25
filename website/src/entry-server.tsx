@@ -5,6 +5,9 @@ import { StaticRouter } from 'react-router-dom'
 import { HelmetProvider, type HelmetServerState } from 'react-helmet-async'
 import App from './App.tsx'
 
+// Re-export route helpers so the prerender/sitemap scripts can use them
+export { getAllRoutes, getAllSitemapEntries } from './data/seo-pages'
+
 export function render(url: string) {
     const helmetContext: { helmet?: HelmetServerState } = {}
 

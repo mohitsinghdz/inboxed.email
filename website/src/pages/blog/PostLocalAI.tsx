@@ -14,8 +14,8 @@ export default function PostLocalAI() {
                     "@type": "Article",
                     "headline": "Why Local Private LLMs are the Future of Email",
                     "description": "Cloud AI scans your data. Local Private LLMs run on your device. Discover why the future of email intelligence is offline.",
-                    "datePublished": "2026-02-03",
-                    "dateModified": "2026-02-03",
+                    "datePublished": "2026-01-09",
+                    "dateModified": "2026-01-09",
                     "author": {
                         "@type": "Person",
                         "name": "Mohit Singh",
@@ -37,7 +37,7 @@ export default function PostLocalAI() {
                         Why Local Private LLMs are the Future of Email
                     </h1>
                     <div className="font-mono text-sm text-mutedForeground flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <time dateTime="2026-02-03">February 3, 2026</time>
+                        <time dateTime="2026-01-09">January 9, 2026</time>
                         <span>•</span>
                         <span>5 min read</span>
                         <span>•</span>
